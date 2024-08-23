@@ -3,6 +3,29 @@ import random
 import pickle
 
 class Network:
+
+    class Quadratic_cost:
+        
+        def __init__(self):
+            pass
+
+        def value(self, a, y):
+            return np.sum(np.square(a - y)/2)
+
+        def gradient(self, a, y):
+            return (a - y)
+
+    class CrossEntropy_cost:
+
+        def __init__(self):
+            pass
+
+        def value(self, a, y):
+            return np.sum(np.nan_to_num(-y*np.log(a) - (1-y)*np.log(1-a)))
+
+        def gradient(self, a, y):
+            return (-y/a + (1-y)/(1-a))
+        
     def sigmoid(x):
         return 1/(1 + np.exp(-x))
         
@@ -33,7 +56,14 @@ class Network:
             a = Network.sigmoid(z)
         return a
 
-    def train(self, training_data, test_data, eta, mini_batch_size, epochs):
+    def train(self, training_data, test_data, eta, mini_batch_size, epochs, cost="cross entropy"):
+        if cost.lower() == "cross entropy":
+            self.cost = Network.CrossEntropy_cost()
+        elif cost.lower() == "quadratic":
+            self.cost = Network.Quadratic_cost()
+        else:
+            raise KeyError(f"{cost} is not a valid weight initialisation.")
+        
         for i in range(epochs):
             new_training_data = training_data[:]
             random.shuffle(new_training_data)
@@ -71,7 +101,7 @@ class Network:
             a = Network.sigmoid(z)
             a_s.append(a)
 
-        delta = np.multiply((a_s[-1] - y), Network.sigmoid_prime(z_s[-1]))
+        delta = np.multiply(self.cost.gradient(a_s[-1], y), Network.sigmoid_prime(z))
         deltas[-1] = delta
 
         delta_weights[-1] = np.matmul(delta, np.transpose(a_s[-2]))
