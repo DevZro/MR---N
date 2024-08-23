@@ -9,11 +9,23 @@ class Network:
     def sigmoid_prime(x):
         return (Network.sigmoid(x)*(1 - Network.sigmoid(x)))
          
-    def __init__(self, size):
+    def __init__(self, size, weight_initialisation="small"):
         self.size = size
-        self.biases = [np.random.standard_normal((size[i], 1)) for i in range(1, len(size))]
-        self.weights = [np.random.standard_normal((size[i], size[i-1])) for i in range(1, len(size))]
+        if weight_initialisation.lower() == "small":
+            self.small_weight_initialisation()
+        elif weight_initialisation.lower() == "large":
+            self.large_weight_initialisation()
+        else:
+            raise KeyError(f"{weight_initialisation} is not a valid weight initialisation.")
 
+    def large_weight_initialisation(self):
+        self.biases = [np.random.standard_normal((self.size[i], 1)) for i in range(1, len(self.size))]
+        self.weights = [np.random.standard_normal((self.size[i], self.size[i-1])) for i in range(1, len(self.size))]   
+
+    def small_weight_initialisation(self):
+        self.biases = [np.random.standard_normal((self.size[i], 1)) for i in range(1, len(self.size))]
+        self.weights = [np.random.standard_normal((self.size[i], self.size[i-1]))/np.sqrt(self.size[i-1]) for i in range(1, len(self.size))]
+        
     def feedforward(self, x):
         a = x
         for i in range(len(self.size)-1):
