@@ -56,7 +56,7 @@ class Network:
             a = Network.sigmoid(z)
         return a
 
-    def train(self, training_data, test_data, eta, mini_batch_size, epochs, cost="cross entropy"):
+    def train(self, training_data, test_data, eta, lmbda, mini_batch_size, epochs, cost="cross entropy"):
         if cost.lower() == "cross entropy":
             self.cost = Network.CrossEntropy_cost()
         elif cost.lower() == "quadratic":
@@ -64,18 +64,19 @@ class Network:
         else:
             raise KeyError(f"{cost} is not a valid weight initialisation.")
         
+        training_size = len(training_data)
         for i in range(epochs):
             new_training_data = training_data[:]
             random.shuffle(new_training_data)
             mini_batches = [new_training_data[i*mini_batch_size: (i+1)*mini_batch_size] for i in range(len(new_training_data)//mini_batch_size)]
             for mini_batch in mini_batches:
-                self.update_weights(mini_batch, eta)
+                self.update_weights(mini_batch, eta, lmbda, training_size)
                 
             accuracy = self.check_accuracy(test_data)
         
             print(f"Epoch {i}: {accuracy} out of {len(test_data)}")
 
-    def update_weights(self, mini_batch, eta):
+    def update_weights(self,mini_batch, eta, lmbda, training_size):
         cumulative_delta_weights = [np.zeros_like(self.weights[i]) for i in range(len(self.weights))]
         cumulative_delta_biases = [np.zeros_like(self.biases[i]) for i in range(len(self.biases))]
 
@@ -84,7 +85,7 @@ class Network:
             cumulative_delta_weights = [cdw + ndw for cdw, ndw in zip(cumulative_delta_weights, new_delta_weights)]
             cumulative_delta_biases = [cdb + ndb for cdb, ndb in zip(cumulative_delta_biases, new_delta_biases)]
 
-        self.weights = [w - (eta/len(mini_batch))*cdw for w, cdw in zip(self.weights, cumulative_delta_weights)]
+        self.weights = [w*(1-(eta*lmbda)/training_size) - (eta/len(mini_batch))*cdw for w, cdw in zip(self.weights, cumulative_delta_weights)]
         self.biases = [b - (eta/len(mini_batch))*cdb for b, cdb in zip(self.biases, cumulative_delta_biases)]
 
     def backpropagate(self, data):
