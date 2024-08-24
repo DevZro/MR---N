@@ -56,13 +56,16 @@ class Network:
             a = Network.sigmoid(z)
         return a
 
-    def train(self, training_data, test_data, eta, lmbda, mini_batch_size, epochs, cost="cross entropy"):
+    def train(self, training_data, test_data, eta, lmbda, mini_batch_size, epochs, cost="cross entropy",  track_training_metrics=False):
         if cost.lower() == "cross entropy":
             self.cost = Network.CrossEntropy_cost()
         elif cost.lower() == "quadratic":
             self.cost = Network.Quadratic_cost()
         else:
             raise KeyError(f"{cost} is not a valid weight initialisation.")
+        
+        training_accuracies, training_costs = [], []
+        test_accuracies, test_costs = [], []
         
         training_size = len(training_data)
         for i in range(epochs):
@@ -72,9 +75,29 @@ class Network:
             for mini_batch in mini_batches:
                 self.update_weights(mini_batch, eta, lmbda, training_size)
                 
-            accuracy = self.check_accuracy(test_data)
-        
-            print(f"Epoch {i}: {accuracy} out of {len(test_data)}")
+            print(f"Epoch {i}")
+
+            if track_training_metrics:
+                training_accuracy = self.check_accuracy(training_data)
+                training_cost = self.calculate_cost(training_data)
+
+                training_accuracies.append(training_accuracy)
+                training_costs.append(training_cost)
+
+                print(f"Training Accuracy: {training_accuracy} out of {len(training_data)}")
+                print(f"Training Cost: {training_cost} ")
+
+                
+            test_accuracy = self.check_accuracy(test_data)
+            test_cost = self.calculate_cost(test_data)
+
+            test_accuracies.append(test_accuracy)
+            test_costs.append(test_cost)
+
+            print(f"Test Accuracy: {test_accuracy} out of {len(test_data)}")
+            print(f"Test Cost: {test_cost}")
+
+        return ((training_accuracies, training_costs), (test_accuracies, test_cost))
 
     def update_weights(self,mini_batch, eta, lmbda, training_size):
         cumulative_delta_weights = [np.zeros_like(self.weights[i]) for i in range(len(self.weights))]
