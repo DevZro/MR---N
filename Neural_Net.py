@@ -77,6 +77,8 @@ class Network:
             self.cost = Network.CrossEntropy_cost()
         elif cost.lower() == "quadratic":
             self.cost = Network.Quadratic_cost()
+        elif ("value" in dir(cost)) and ("gradient" in dir(cost)): #checks if the cost (potenially custom) is of a compatible form
+            self.cost = cost
         else:
             raise KeyError(f"{cost} is not a valid weight initialisation.")
         
