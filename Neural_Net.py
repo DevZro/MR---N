@@ -29,6 +29,9 @@ class Network:
         def gradient(self, a, y):
             return (-y/a + (1-y)/(1-a))
         
+    def exponential(eta, epoch, exponential_constant):
+        return eta*((exponential_constant)**epoch)
+
     def sigmoid(x):
         return 1/(1 + np.exp(-x)) 
         
@@ -66,10 +69,22 @@ class Network:
             a = Network.sigmoid(z)
         return a
 
-    def train(self, training_data, test_data, eta, lmbda, mini_batch_size, epochs, alpha=0.0, cost="cross entropy",  track_training_metrics=False):
+    def train(self, training_data, test_data, eta, lmbda, mini_batch_size, epochs, alpha=0.0, cost="cross entropy",  track_training_metrics=False, learning_rate_schedule="exponential", learning_rate_constant=1.0):
         """
         initialises training of network. Requires paramters such as training data, test data, learning rate, lamdba (L2 regularisation constant),
-        alpha (momentum parameter),  batch size, epochs, cost and boolean indicating whether or not to track training data metrics
+        alpha (momentum parameter),  batch size, epochs, cost and boolean indicating whether or not to track training data metrics.
+
+        There is a cost parameter which sets the cost object.
+        The cost can either be a recognised keyword such as quadratic or an object of a custom class which can be supported.
+        Custom classes must support both the value and gradient methods.
+        The validity of the gradient method and the custom class as a whole is left to the creator and will not be checked by code.
+
+        It also contains learning rate schedule and learning rate constant parameters.
+        The learning rate schedule can either be a recognised keyword such as exponential or a custom function which can be supported.
+        Custom functions must take 3 arguments (eta, current_epoch(counting from 0), learning rate constant) to work.
+        Since custom functions are completely ... custom, the use of the constant is entirely up to the creator.
+        The standard learning rate schedule is initialised with and exponential function with constant set to 1 to replicate a constant function
+
         The training follows a L2 regularised form of the momentum based stochastic gradient descent algorithm, but they can be reduced to the basic SGD
         case by setting both lmbda and alpha to zero
         ps: for the sake of modularity, cost will be made to accept any object with value and gradient methods.
@@ -78,14 +93,29 @@ class Network:
         """
         cost attribute is set
         """
-        if cost.lower() == "cross entropy":
+
+        if ("value" in dir(cost)) and ("gradient" in dir(cost)): #checks if the cost (potenially custom) is of a compatible form
+            self.cost = cost
+        elif cost.lower() == "cross entropy":
             self.cost = Network.CrossEntropy_cost()
         elif cost.lower() == "quadratic":
             self.cost = Network.Quadratic_cost()
-        elif ("value" in dir(cost)) and ("gradient" in dir(cost)): #checks if the cost (potenially custom) is of a compatible form
-            self.cost = cost
         else:
-            raise KeyError(f"{cost} is not a valid weight initialisation.")
+            raise KeyError(f"{cost} is not a valid cost initialisation.")
+        
+        """
+        learning rate schedule is set
+        """
+        if ("function" in type(learning_rate_schedule)) or ("method" in type(learning_rate_constant)):
+            pass
+        elif learning_rate_schedule.lower() == "exponential":
+            learning_rate_schedule = Network.exponential
+        else:
+            raise KeyError(f"{learning_rate_schedule} is not a valid learning rate schedule initialisation.")
+        
+
+
+
         
         training_accuracies, training_costs = [], []
         test_accuracies, test_costs = [], []
@@ -98,7 +128,7 @@ class Network:
             random.shuffle(new_training_data)
             mini_batches = [new_training_data[i*mini_batch_size: (i+1)*mini_batch_size] for i in range(math.ceil(len(new_training_data)/mini_batch_size))]
             for mini_batch in mini_batches:
-                self.update_weights(mini_batch, eta, lmbda, alpha, training_size) # weights and biases are adjusted using each mini batch
+                self.update_weights(mini_batch, learning_rate_schedule(eta, i, learning_rate_constant), lmbda, alpha, training_size) # weights and biases are adjusted using each mini batch
                 
             print(f"Epoch {i}")
 
