@@ -45,6 +45,9 @@ class Network:
             self.large_weight_initialisation()
         else:
             raise KeyError(f"{weight_initialisation} is not a valid weight initialisation.") # any input that is not "small" or "large" is invalid and throws and exception
+        
+        self.weight_velocity = [np.zeros_like(self.weights[i]) for i in range(len(self.weights))]
+        self.bias_velocity = [np.zeros_like(self.biases[i]) for i in range(len(self.biases))] # velocity attributes are created to help with momentum based training
 
     def large_weight_initialisation(self):
         self.biases = [np.random.standard_normal((self.size[i], 1)) for i in range(1, len(self.size))] # for each layer (hidden or final) a bias vector of layer size lenght is created
@@ -63,10 +66,12 @@ class Network:
             a = Network.sigmoid(z)
         return a
 
-    def train(self, training_data, test_data, eta, lmbda, mini_batch_size, epochs, cost="cross entropy",  track_training_metrics=False):
+    def train(self, training_data, test_data, eta, lmbda, mini_batch_size, epochs, alpha=0.0, cost="cross entropy",  track_training_metrics=False):
         """
         initialises training of network. Requires paramters such as training data, test data, learning rate, lamdba (L2 regularisation constant),
-        batch size, epochs, cost and boolean indicating whether or not to track training data metrics
+        alpha (momentum parameter),  batch size, epochs, cost and boolean indicating whether or not to track training data metrics
+        The training follows a L2 regularised form of the momentum based stochastic gradient descent algorithm, but they can be reduced to the basic SGD
+        case by setting both lmbda and alpha to zero
         ps: for the sake of modularity, cost will be made to accept any object with value and gradient methods.
         """
 
@@ -86,12 +91,14 @@ class Network:
         test_accuracies, test_costs = [], []
         
         training_size = len(training_data)
+
+
         for i in range(epochs): # data is shuffled and split into batches to be trained
             new_training_data = training_data[:] # new data is created so as to preserve order after each suffle
             random.shuffle(new_training_data)
             mini_batches = [new_training_data[i*mini_batch_size: (i+1)*mini_batch_size] for i in range(math.ceil(len(new_training_data)/mini_batch_size))]
             for mini_batch in mini_batches:
-                self.update_weights(mini_batch, eta, lmbda, training_size) # weights and biases are adjusted using each mini batch
+                self.update_weights(mini_batch, eta, lmbda, alpha, training_size) # weights and biases are adjusted using each mini batch
                 
             print(f"Epoch {i}")
 
@@ -120,7 +127,7 @@ class Network:
 
         return ((training_accuracies, training_costs), (test_accuracies, test_costs)) # returns the history of training and test metrics for each epoch
 
-    def update_weights(self,mini_batch, eta, lmbda, training_size):
+    def update_weights(self,mini_batch, eta, lmbda, alpha, training_size):
         cumulative_delta_weights = [np.zeros_like(self.weights[i]) for i in range(len(self.weights))]
         cumulative_delta_biases = [np.zeros_like(self.biases[i]) for i in range(len(self.biases))] # change to biases and weights to be added initialised as zeros
 
@@ -128,9 +135,12 @@ class Network:
             new_delta_weights, new_delta_biases = self.backpropagate(data)
             cumulative_delta_weights = [cdw + ndw for cdw, ndw in zip(cumulative_delta_weights, new_delta_weights)]
             cumulative_delta_biases = [cdb + ndb for cdb, ndb in zip(cumulative_delta_biases, new_delta_biases)]
+    
+        self.weight_velocity = [alpha*wv + (eta/len(mini_batch))*cdw for wv, cdw in zip(self.weight_velocity, cumulative_delta_weights)] 
+        self.bias_velocity = [alpha*bv + (eta/len(mini_batch))*cdb for bv, cdb in zip(self.bias_velocity, cumulative_delta_biases)]
 
-        self.weights = [w*(1-(eta*lmbda)/training_size) - (eta/len(mini_batch))*cdw for w, cdw in zip(self.weights, cumulative_delta_weights)]
-        self.biases = [b - (eta/len(mini_batch))*cdb for b, cdb in zip(self.biases, cumulative_delta_biases)] # weights and biases and updated using the average of the total gradient and L2 regularisation
+        self.weights = [w*(1-(eta*lmbda)/training_size) - wv for w, wv in zip(self.weights, self.weight_velocity)]
+        self.biases = [b - bv for b, bv in zip(self.biases, self.bias_velocity)] # weights and biases and updated using the average of the total gradient, momentum and L2 regularisation
 
     def backpropagate(self, data):
         X, y = data
