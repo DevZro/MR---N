@@ -150,6 +150,21 @@ class Network:
         
         def derivative_from_output(self, y):
             return (y > 0).astype(np.float32)
+        
+
+    class Tanh(Activation):
+
+        def __init__(self):
+            pass
+
+        def value(self, x):
+            return np.tanh(x)
+
+        def derivative(self, x):
+            return (1 - np.tanh(x)**2)
+
+        def derivative_from_output(self, y):
+            return (1 - y**2)
 
     class FullyConnectedLayer(Layer):
         """
