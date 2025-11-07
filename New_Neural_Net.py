@@ -5,6 +5,11 @@ import math
 class Network:
 
     class Layer:
+        """
+        The Base class for all layer types to inherit form. Defines 2 methods that all layers must implement
+        1. feedForwad for the forward pass
+        2. backpropagation for the backward pass
+        """
 
         def __init__(self):
             pass
@@ -16,6 +21,13 @@ class Network:
             raise NotImplementedError
 
     class Activation:
+        """
+        The Base class for all activation function types to inherit form. Defines 3 methods that all activation functiions must implement
+        1. value to evaluate the output of the activation function
+        2. derivative to compute the gradient of the activation function
+        3. derivative_from_output... does the same thing as derivative but computes from output instead of input and thus needs less
+        memory overhead and is more efficient as a result.
+        """
         
         def __init__(self):
             pass
@@ -30,6 +42,11 @@ class Network:
             raise NotImplementedError
 
     class Cost:
+        """
+        The Base class for all cost function types to inherit form. Defines 2 methods that all cost functions must implement
+        1. value to compute the cost of the network
+        2. gradient to compute the gradient of the cost with respect to the output
+        """
         
         def __init__(self):
             pass
