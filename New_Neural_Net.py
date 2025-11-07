@@ -3,6 +3,13 @@ import random
 import math
 
 class Network:
+    """
+    The Network Class that creates a Neural Network object.
+    The class is built on a Linked List style structure with each layer acting as independent object and the Network class being a wrapper for all.
+    The class also has a very modular design as everything from NN layers to cost and activations are created as classes.
+
+    All arrays and inputs of any kind are assumed to numpy arrays
+    """
 
     class Layer:
         """
@@ -60,14 +67,12 @@ class Network:
         
         def gradient(self, a, y):
             raise NotImplementedError
+        
+    class Optimizer:
+        pass
 
-    """
-        The Network Class that creates a Neural Network object.
-        The class is built on a Linked List style structure with each layer acting as independent object and the Network class being a wrapper for all.
-        The class also has a very modular design as everything from NN layers to cost and activations are created as classes.
-
-    All arrays and inputs of any kind are assumed to numpy arrays
-    """
+    class Scheduler:
+        pass
 
     class Quadratic_cost(Cost):
         """
@@ -169,6 +174,16 @@ class Network:
 
         def derivative_from_output(self, y):
             return (1 - y**2)
+        
+
+    class SGD(Optimizer):
+        pass
+
+    class Momentum(Optimizer):
+        pass
+
+    class Adam(Optimizer):
+        pass
 
     class FullyConnectedLayer(Layer):
         """
