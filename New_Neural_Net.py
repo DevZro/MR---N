@@ -66,8 +66,8 @@ class Network:
             pass
 
         def value(self, x): # returns the output of the sigmoid function
-            # np.nan_to_num to handle the pesky nan that can occur
-            return np.nan_to_num(1/(1 + np.exp(-x)))
+            # numerically stable as regular implementation could encounter overflow for near infinite values
+            return np.exp(-np.logaddexp(0, -x))
 
         def derivative(self, x):
             return (self.value(x)*(1 - self.value(x)))
