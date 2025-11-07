@@ -11,8 +11,12 @@ class Network:
         2. backpropagation for the backward pass
         """
 
-        def __init__(self):
-            pass
+        def __init__(self, inputLayer=None):
+            self.inputLayer = inputLayer
+            self.outputLayer = None # initialise with no child layer
+
+            if self.inputLayer != None: # if the current layer is connected to a parent layer, set it as the child layer of said parent
+                self.inputLayer.outputLayer = self
 
         def feedForward(self, x, train=False):
             raise NotImplementedError
@@ -65,7 +69,7 @@ class Network:
     All arrays and inputs of any kind are assumed to numpy arrays
     """
 
-    class Quadratic_cost:
+    class Quadratic_cost(Cost):
         """
             The Quadratic Cost implementation.
             To aid modularity, all Cost classes support two methods
@@ -82,7 +86,7 @@ class Network:
         def gradient(self, a, y):
             return (a - y)
 
-    class CrossEntropy_cost:
+    class CrossEntropy_cost(Cost):
         """
             The Cross Entropy Cost implementation.
         """
@@ -99,7 +103,7 @@ class Network:
             # zero division error occurs and thus requires the np.nan_to_num method
             return (np.nan_to_num(-y/a) + np.nan_to_num((1-y)/(1-a)))
 
-    class Sigmoid:
+    class Sigmoid(Activation):
         """
             The Sigmoid activation.
             Just like cost classes, the activation classes have a template.
@@ -129,7 +133,7 @@ class Network:
         def derivative_from_output(self, y):
             return (y * (1 - y))
         
-    class ReLU:
+    class ReLU(Activation):
         """
         The ReLU activation.
         Implements the three cardinal activation function requirements.
@@ -147,7 +151,7 @@ class Network:
         def derivative_from_output(self, y):
             return (y > 0).astype(np.float32)
 
-    class FullyConnectedLayer:
+    class FullyConnectedLayer(Layer):
         """
             The Fully connected layer class.
 
@@ -177,15 +181,10 @@ class Network:
         """
 
         def __init__(self, input, output, inputLayer=None, activation="sigmoid", weight_initialisation="small", dropout=False):
+            super().__init__(inputLayer)
             
             self.inputSize = input
             self.outputSize = output
-            
-            self.inputLayer = inputLayer
-            self.outputLayer = None # initialise with no child layer
-
-            if self.inputLayer != None: # if the current layer is connected to a parent layer, set it as the child layer of said parent
-                self.inputLayer.outputLayer = self
             
             self.bias = np.random.standard_normal((output, 1)) # bias set to have dimensions of the neurons in the layer
             
@@ -261,7 +260,7 @@ class Network:
             
             
 
-    class ConvolutionalLayer:
+    class ConvolutionalLayer(Layer):
         """
             The Convolutional layer class.
 
@@ -305,13 +304,9 @@ class Network:
         """
         
         def __init__(self, input, input_channels, kernel_size, output_channels, inputLayer=None, activation="sigmoid"):
-            self.inputSize = input
-            
-            self.inputLayer = inputLayer
-            self.outputLayer = None
+            super().__init__(inputLayer)
 
-            if self.inputLayer != None:
-                self.inputLayer.outputLayer = self
+            self.inputSize = input
 
             if activation.lower() == "sigmoid":
                 self.activation = Network.Sigmoid()
@@ -427,7 +422,7 @@ class Network:
 
             return previous_layer_delta
 
-    class Flatten:
+    class Flatten(Layer):
         """
             Flatten class
 
@@ -440,11 +435,7 @@ class Network:
 
         def __init__(self, inputLayer=None):
             
-            self.inputLayer = inputLayer
-            self.outputLayer = None
-
-            if self.inputLayer != None:
-                self.inputLayer.outputLayer = self
+            super().__init__(inputLayer)
 
             self.lastInput = None
 
