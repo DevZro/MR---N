@@ -175,7 +175,6 @@ class Network:
         def derivative_from_output(self, y):
             return (1 - y**2)
         
-
     class SGD(Optimizer):
         pass
 
@@ -233,6 +232,8 @@ class Network:
                 self.activation = Network.Sigmoid()
             elif activation.lower() == "relu":
                 self.activation = Network.ReLU()
+            elif activation.lower() == "tanh":
+                self.activation = Network.Tanh()
             else:
                 raise KeyError(f"{activation} is not a valid activation.")
 
@@ -346,6 +347,8 @@ class Network:
                 self.activation = Network.Sigmoid()
             elif activation.lower() == "relu":
                 self.activation = Network.ReLU()
+            elif activation.lower() == "tanh":
+                self.activation = Network.Tanh()
             else:
                 raise KeyError(f"{activation} is not a valid activation.")
 
