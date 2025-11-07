@@ -186,7 +186,7 @@ class Network:
             return output
 
         def backpropagate(self, delta, eta):
-            previous_layer_delta = None # initialise the previous layer delta as None in case there is inputLayer (this staves off a bug of trying to return 
+            previous_layer_delta = None # initialise the previous layer delta as None in case there is no inputLayer (this staves off a bug of trying to return 
                                         # a value that wasn't initialised)
             if self.dropout: # if there is a dropout, the dropped out neurons are inactive and thus do not have any error/delta
                 delta *= self.dropoutmask
@@ -233,7 +233,7 @@ class Network:
 
             A current flaw of the class is that just like the fully connected layer there is a need to specify the exact size of the input,
             this is usually not a problem as long as a few basic rules are kept in mind.
-            The convolutional layer has it currently exists always pads th input, has no stride parameter and does not support pooling.
+            The convolutional layer as it currently exists always pads the input, has no stride parameter and does not support pooling.
             This means that value of "input" does not change for successive convolutional layers
             The output_channels for one convolutional layer is always the input_channels for the next
 
@@ -261,6 +261,8 @@ class Network:
 
             if activation.lower() == "sigmoid":
                 self.activation = Network.Sigmoid()
+            elif activation.lower() == "relu":
+                self.activation = Network.ReLU()
             else:
                 raise KeyError(f"{activation} is not a valid activation.")
 
