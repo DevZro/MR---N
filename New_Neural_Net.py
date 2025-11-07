@@ -3,6 +3,43 @@ import random
 import math
 
 class Network:
+
+    class Layer:
+
+        def __init__(self):
+            pass
+
+        def feedForward(self, x, train=False):
+            raise NotImplementedError
+        
+        def backpropagate(self, delta, eta):
+            raise NotImplementedError
+
+    class Activation:
+        
+        def __init__(self):
+            pass
+
+        def value(self, x):
+            raise NotImplementedError
+        
+        def derivative(self, x):
+            raise NotImplementedError
+        
+        def derivative_from_output(self, y):
+            raise NotImplementedError
+
+    class Cost:
+        
+        def __init__(self):
+            pass
+
+        def value(self, a, y):
+            raise NotImplementedError
+        
+        def gradient(self, a, y):
+            raise NotImplementedError
+
     """
         The Network Class that creates a Neural Network object.
         The class is built on a Linked List style structure with each layer acting as independent object and the Network class being a wrapper for all.
@@ -317,7 +354,7 @@ class Network:
             return output
 
         def backpropagate(self, delta, eta):
-            previous_layer_delta = None # initialise the previous layer delta as None in case there is inputLayer (this staves off a bug of trying to return 
+            previous_layer_delta = None # initialise the previous layer delta as None in case there is no inputLayer (this staves off a bug of trying to return 
                                         # a value that wasn't initialised)
             
             if self.inputLayer != None: # backpropagates the delta to find the delta of the previous layer
@@ -344,7 +381,7 @@ class Network:
                         
                 previous_layer_delta *= self.activation.derivative_from_output(self.lastInput)
 
-            # initialise the gradient with respect to the weights as a matrrix of zeros
+            # initialise the gradient with respect to the weights as a matrix of zeros
             # it has one more dimension than the kernel
             # the last dimension is the number of data points in the batch (batch_size)
             # similar to the feedforward calculation, a section of the padded input data is extracted.
