@@ -74,6 +74,20 @@ class Network:
 
         def derivative_from_output(self, y):
             return (y * (1 - y))
+        
+    class ReLU:
+
+        def __init__(self):
+            pass
+
+        def value(self, x):
+            return np.maximum(0, x)
+        
+        def derivative(self, x):
+            return (x > 0).astype(np.float32)
+        
+        def derivative_from_output(self, y):
+            return (y > 0).astype(np.float32)
 
     class FullyConnectedLayer:
         """
