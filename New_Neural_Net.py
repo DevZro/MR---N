@@ -76,6 +76,10 @@ class Network:
             return (y * (1 - y))
         
     class ReLU:
+        """
+        The ReLU activation.
+        Implements the three cardinal activation function requirements.
+        """
 
         def __init__(self):
             pass
@@ -140,6 +144,8 @@ class Network:
 
             if activation.lower() == "sigmoid":
                 self.activation = Network.Sigmoid()
+            elif activation.lower() == "relu":
+                self.activation = Network.ReLU()
             else:
                 raise KeyError(f"{activation} is not a valid activation.")
 
@@ -570,3 +576,4 @@ class Network:
 # Having base classes for Layers, Costs, and Activations that have predefined methods and can be inherited from will be useful
 # Having subsequent layers infer redundant parameters will also be useful
 # It could also help to put trailer layers in the Network class as attributes as this is the more standard doubly-linked list format and can definitely help
+# Having a separate dropout layer would prove useful
