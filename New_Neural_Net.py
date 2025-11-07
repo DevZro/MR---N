@@ -105,7 +105,7 @@ class Network:
 
     class Sigmoid(Activation):
         """
-            The Sigmoid activation.
+            The Sigmoid (Logistic) activation.
             Just like cost classes, the activation classes have a template.
             They all support 3 methods
             1. Value methods returns the output of the activation function
@@ -135,7 +135,7 @@ class Network:
         
     class ReLU(Activation):
         """
-        The ReLU activation.
+        The ReLU (Rectified Linear Unit) activation.
         Implements the three cardinal activation function requirements.
         """
 
@@ -153,6 +153,10 @@ class Network:
         
 
     class Tanh(Activation):
+        """
+        The Tanh (Hyperbolic Tangent) activation.
+        Implements the three cardinal activation function requirements.
+        """
 
         def __init__(self):
             pass
