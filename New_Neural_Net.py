@@ -232,7 +232,7 @@ class Network:
 
         """
 
-        def __init__(self, input, output, inputLayer=None, activation="sigmoid", weight_initialisation="small", dropout=False):
+        def __init__(self, input, output, inputLayer=None, activation="sigmoid", weight_initialisation="small"):
             super().__init__(inputLayer)
             
             self.inputSize = input
@@ -258,8 +258,6 @@ class Network:
             else:
                 raise KeyError(f"{activation} is not a valid activation.")
 
-            self.dropout = dropout
-
         def large_weight_initialisation(self): # standard weight initialisation
             self.weight = np.random.standard_normal((self.outputSize, self.inputSize))
 
@@ -282,23 +280,23 @@ class Network:
             # in actuality, it uses the assumption that a backprop step was preceeded by a feedforward step
             # by storing the input of the latest feedforward step, the needed variable for backprop will be available
             
-            if self.dropout:
+            """if self.dropout:
                 if train: # use mask if it is a dropout layer during a train scenario
                     self.dropoutmask = np.random.randint(2, size=(self.outputSize,1))
                     output = self.dropoutmask * self.activation.value(np.matmul(self.weight, x) + self.bias)
                     
                 else: # use full matrix with adjusted values during regular predictions for dropout layers
-                    output = self.activation.value(np.matmul(0.5 * self.weight, x) + self.bias)
+                    output = self.activation.value(np.matmul(0.5 * self.weight, x) + self.bias)"""
                     
-            else: # there is no dropout, proceed normally
-                output = self.activation.value(np.matmul(self.weight, x) + self.bias)
+            
+            output = self.activation.value(np.matmul(self.weight, x) + self.bias)
             return output
 
         def backpropagate(self, delta, eta):
             previous_layer_delta = None # initialise the previous layer delta as None in case there is no inputLayer (this staves off a bug of trying to return 
                                         # a value that wasn't initialised)
-            if self.dropout: # if there is a dropout, the dropped out neurons are inactive and thus do not have any error/delta
-                delta *= self.dropoutmask
+            """ if self.dropout: # if there is a dropout, the dropped out neurons are inactive and thus do not have any error/delta
+                delta *= self.dropoutmask """
             
             if self.inputLayer != None: # backpropagates the delta to find the delta of the previous layer
                 previous_layer_delta = np.matmul(self.weight.T, delta) * self.activation.derivative_from_output(self.lastInput)
@@ -511,7 +509,7 @@ class Network:
             return self.activation.value(x)
         
         def backpropagate(self, delta, eta):
-            return self.activation.derivative_from_output(self.lastInput)
+            return (delta * self.activation.derivative_from_output(self.lastInput))
 
 
     class Flatten(Layer):
