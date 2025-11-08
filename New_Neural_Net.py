@@ -492,7 +492,7 @@ class Network:
         # currently a quick fix to use the conv parameter to show that it is a conv net as some methods act differently depending on what form of NN it is 
         self.firstLayer = None
         self.lastLayer = None
-        self.conv = True
+        self.conv = conv
 
     def compile(self, firstLayer):
         # compiles the Network by looping through the network and setting the first and layers to appropriate values
@@ -638,8 +638,11 @@ class Network:
    
         total = 0
         for i in range(100):
-            result = np.argmax(self.predict(X[:, :, :, i*(X.shape[3]//100) : (i+1)*(X.shape[3]//100)]), axis=0)
-            solution = np.argmax(y[:, i*(X.shape[3]//100) : (i+1)*(X.shape[3]//100)], axis=0)
+            if self.conv:
+                result = np.argmax(self.predict(X[:, :, :, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)]), axis=0)
+            else:
+                result = np.argmax(self.predict(X[:, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)]), axis=0)
+            solution = np.argmax(y[:, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)], axis=0)
             total += np.sum(result == solution)
         return total
 
@@ -650,8 +653,11 @@ class Network:
         # the caveats of the check_accuracy method all apply      
         cost_value = 0
         for i in range(100):
-            a = self.predict(X[:, :, :, i*(X.shape[3]//100) : (i+1)*(X.shape[3]//100)])
-            cost_value += self.cost.value(a, y[:, i*(X.shape[3]//100) : (i+1)*(X.shape[3]//100)])/y.shape[1]
+            if self.conv:
+                a = self.predict(X[:, :, :, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)])
+            else:
+                a = self.predict(X[:, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)])
+            cost_value += self.cost.value(a, y[:, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)])/y.shape[1]
         return cost_value
             
 # Final thoughts
