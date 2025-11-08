@@ -232,7 +232,7 @@ class Network:
 
         """
 
-        def __init__(self, input, output, inputLayer=None, activation="sigmoid", weight_initialisation="small"):
+        def __init__(self, input, output, inputLayer=None, weight_initialisation="small"):
             super().__init__(inputLayer)
             
             self.inputSize = input
@@ -246,17 +246,6 @@ class Network:
                 self.large_weight_initialisation()
             else:
                 raise KeyError(f"{weight_initialisation} is not a valid weight initialisation.")
-
-            if activation == None:
-                self.activation = Network.Identity()
-            elif activation.lower() == "sigmoid":
-                self.activation = Network.Sigmoid()
-            elif activation.lower() == "relu":
-                self.activation = Network.ReLU()
-            elif activation.lower() == "tanh":
-                self.activation = Network.Tanh()
-            else:
-                raise KeyError(f"{activation} is not a valid activation.")
 
         def large_weight_initialisation(self): # standard weight initialisation
             self.weight = np.random.standard_normal((self.outputSize, self.inputSize))
@@ -289,7 +278,7 @@ class Network:
                     output = self.activation.value(np.matmul(0.5 * self.weight, x) + self.bias)"""
                     
             
-            output = self.activation.value(np.matmul(self.weight, x) + self.bias)
+            output = np.matmul(self.weight, x) + self.bias
             return output
 
         def backpropagate(self, delta, eta):
@@ -299,7 +288,7 @@ class Network:
                 delta *= self.dropoutmask """
             
             if self.inputLayer != None: # backpropagates the delta to find the delta of the previous layer
-                previous_layer_delta = np.matmul(self.weight.T, delta) * self.activation.derivative_from_output(self.lastInput)
+                previous_layer_delta = np.matmul(self.weight.T, delta)
 
             # finds the grad with respect to weights and biases
             delta_weight = np.matmul(delta, self.lastInput.T)
@@ -509,7 +498,8 @@ class Network:
             return self.activation.value(x)
         
         def backpropagate(self, delta, eta):
-            return (delta * self.activation.derivative_from_output(self.lastInput))
+            return (delta * self.activation.derivative(self.lastInput)) # we used derivative instead of derivative from output
+                                                                        # this is because self.lastInput is a "z" not an "a"
 
 
     class Flatten(Layer):
@@ -668,7 +658,7 @@ class Network:
         # to fit, one forward pass is taken IMMEDIATELY followed by a backward pass which starts with the delta calculated using the output
         
         a = self.predict(X, True)
-        delta = self.cost.gradient(a, y) * self.lastLayer.activation.derivative_from_output(a)
+        delta = self.cost.gradient(a, y)
         
         walk = self.lastLayer
         
