@@ -175,6 +175,25 @@ class Network:
         def derivative_from_output(self, y):
             return (1 - y**2)
         
+    class Identity(Activation):
+        """
+        A do nothing activation for logits output or regression.
+        Implements the three cardinal activation function requirements.
+        An inefficient detour just to do nothing but needed until activation layers are created.
+        """
+
+        def __init__(self):
+            pass
+
+        def value(self, x):
+            return x
+        
+        def derivative(self, x):
+            return np.ones(x.shape)
+        
+        def derivative_from_output(self, y):
+            return np.ones(y.shape)
+        
     class SGD(Optimizer):
         pass
 
@@ -228,7 +247,9 @@ class Network:
             else:
                 raise KeyError(f"{weight_initialisation} is not a valid weight initialisation.")
 
-            if activation.lower() == "sigmoid":
+            if activation == None:
+                self.activation = Network.Identity()
+            elif activation.lower() == "sigmoid":
                 self.activation = Network.Sigmoid()
             elif activation.lower() == "relu":
                 self.activation = Network.ReLU()
@@ -343,7 +364,9 @@ class Network:
 
             self.inputSize = input
 
-            if activation.lower() == "sigmoid":
+            if activation == None: # checked first as not to unknowningly try to call None.lower()
+                self.activation = Network.Identity()
+            elif activation.lower() == "sigmoid":
                 self.activation = Network.Sigmoid()
             elif activation.lower() == "relu":
                 self.activation = Network.ReLU()
