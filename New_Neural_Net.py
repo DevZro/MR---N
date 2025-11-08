@@ -481,6 +481,38 @@ class Network:
             self.bias -= eta * delta_bias
 
             return previous_layer_delta
+        
+    class ActivationLayer(Layer):
+        
+        def __init__(self, inputLayer=None, activation=None):
+            super().__init__(inputLayer)
+
+            if activation == None: # checked first as not to unknowningly try to call None.lower()
+                self.activation = Network.Identity()
+            
+            elif isinstance(activation, str):   
+                if activation.lower() == "sigmoid":
+                    self.activation = Network.Sigmoid()
+                elif activation.lower() == "relu":
+                    self.activation = Network.ReLU()
+                elif activation.lower() == "tanh":
+                    self.activation = Network.Tanh()
+                else:
+                    raise KeyError(f"{activation} is not a valid activation.")
+                
+            elif isinstance(activation, Network.Activation):
+                self.activation = activation
+
+            else:
+                raise KeyError(f"{activation} is not a valid activation.")
+
+        def feedForward(self, x, train=False):
+            self.lastInput = x
+            return self.activation.value(x)
+        
+        def backpropagate(self, delta, eta):
+            return self.activation.derivative_from_output(self.lastInput)
+
 
     class Flatten(Layer):
         """
