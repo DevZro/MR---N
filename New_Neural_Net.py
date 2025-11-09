@@ -346,21 +346,10 @@ class Network:
 
         """
         
-        def __init__(self, input, input_channels, kernel_size, output_channels, inputLayer=None, activation="sigmoid"):
+        def __init__(self, input, input_channels, kernel_size, output_channels, inputLayer=None):
             super().__init__(inputLayer)
 
             self.inputSize = input
-
-            if activation == None: # checked first as not to unknowningly try to call None.lower()
-                self.activation = Network.Identity()
-            elif activation.lower() == "sigmoid":
-                self.activation = Network.Sigmoid()
-            elif activation.lower() == "relu":
-                self.activation = Network.ReLU()
-            elif activation.lower() == "tanh":
-                self.activation = Network.Tanh()
-            else:
-                raise KeyError(f"{activation} is not a valid activation.")
 
             self.kernel = np.random.standard_normal(kernel_size + (input_channels, output_channels))
             # The kernels are 4 dimensional arrays of shape (kernel_width, kernel_height, num_of_input_channels, num_of_output_channels)
@@ -408,7 +397,7 @@ class Network:
                     # reshape a couple of things to prep for the multiplication 
                     output[w][h][:, :] = np.sum(np.sum(np.sum(inter, axis=0), axis=0), axis=0).T # the transpose is used to retain the original order
 
-            output =  self.activation.value(output + self.bias) # add the bias as usual and activate
+            output =  output + self.bias # add the bias as usual
             
             return output
 
@@ -437,8 +426,6 @@ class Network:
                         sub_delta = delta_pad[w : w + kernel.shape[0] , h : h + kernel.shape[1], : , :]
                         inter =  sub_delta.reshape((sub_delta.shape) + (1,)) * kernel.reshape((kernel.shape[0], kernel.shape[1], kernel.shape[2], 1, kernel.shape[3]))
                         previous_layer_delta[w][h][:, :] = np.sum(np.sum(np.sum(inter, axis=0), axis=0), axis=0).T
-                        
-                previous_layer_delta *= self.activation.derivative_from_output(self.lastInput)
 
             # initialise the gradient with respect to the weights as a matrix of zeros
             # it has one more dimension than the kernel
