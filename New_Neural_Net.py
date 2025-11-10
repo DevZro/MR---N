@@ -269,23 +269,12 @@ class Network:
             # in actuality, it uses the assumption that a backprop step was preceeded by a feedforward step
             # by storing the input of the latest feedforward step, the needed variable for backprop will be available
             
-            """if self.dropout:
-                if train: # use mask if it is a dropout layer during a train scenario
-                    self.dropoutmask = np.random.randint(2, size=(self.outputSize,1))
-                    output = self.dropoutmask * self.activation.value(np.matmul(self.weight, x) + self.bias)
-                    
-                else: # use full matrix with adjusted values during regular predictions for dropout layers
-                    output = self.activation.value(np.matmul(0.5 * self.weight, x) + self.bias)"""
-                    
-            
             output = np.matmul(self.weight, x) + self.bias
             return output
 
         def backpropagate(self, delta, eta):
             previous_layer_delta = None # initialise the previous layer delta as None in case there is no inputLayer (this staves off a bug of trying to return 
                                         # a value that wasn't initialised)
-            """ if self.dropout: # if there is a dropout, the dropped out neurons are inactive and thus do not have any error/delta
-                delta *= self.dropoutmask """
             
             if self.inputLayer != None: # backpropagates the delta to find the delta of the previous layer
                 previous_layer_delta = np.matmul(self.weight.T, delta)
@@ -486,8 +475,29 @@ class Network:
         
         def backpropagate(self, delta, eta):
             return (delta * self.activation.derivative(self.lastInput)) # we used derivative instead of derivative from output
-                                                                        # this is because self.lastInput is a "z" not an "a"
+                                                                        # this is because self.lastInput is a "z" not an "a
 
+    class Dropout(Layer):
+        """"
+        "1D" dropout for fully connected layers and convolutional layers as well. Drops out individual neurons regardless of 
+        if the input is a fully connected layer or a convolutional layer. 
+        """
+
+        def __init__(self, inputLayer, p=0.5):
+
+            super().__init__(inputLayer)
+            self.mask = None
+            self.p = p
+
+        def feedForward(self, x, train=False):
+            if train:
+                self.mask = np.expand_dims(np.random.binomial(1, 1 - self.p, size=x.shape[:-1]).astype(np.float32), axis=-1)
+                return (self.mask * x) / (1 - self.p)
+            else:
+                return x
+        
+        def backpropagate(self, delta, eta):
+            return (self.mask * delta) / (1 - self.p)
 
     class Flatten(Layer):
         """
@@ -517,6 +527,18 @@ class Network:
             # the backpropagation only reshapes the "flat" delta back to a 4d form
             return np.reshape(delta, self.lastInput.shape)
                             
+    @staticmethod
+    def computeOutputSize(layer):
+        # computes the Output size of a layer
+        # currently has no use but could prove valuable in the future
+        if isinstance(layer, Network.FullyConnectedLayer):
+            return (layer.outputSize, )
+        elif isinstance(layer, Network.ConvolutionalLayer):
+            return layer.inputSize + (layer.kernel.shape[-1],)
+        elif isinstance(layer, Network.ActivationLayer):
+            return (Network.computeOutputSize(layer.inputLayer)) 
+        else:
+            raise KeyError(f"{layer} does not support computeOutputSize")
 
     def __init__(self, conv=False):
         # currently a quick fix to use the conv parameter to show that it is a conv net as some methods act differently depending on what form of NN it is 
@@ -652,6 +674,7 @@ class Network:
         while walk != None:
             delta = walk.backpropagate(delta, eta)
             walk = walk.inputLayer
+    
 
     def check_accuracy(self, X, y):
         # the accuracy could be checked in a much faster fashion
