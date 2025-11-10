@@ -5,8 +5,10 @@ import math
 class Network:
     """
     The Network Class that creates a Neural Network object.
-    The class is built on a Linked List style structure with each layer acting as independent object and the Network class being a wrapper for all.
+    The class is built on a Linked List style structure with each layer acting as independent object 
+    and the Network class being a wrapper for all.
     The class also has a very modular design as everything from NN layers to cost and activations are created as classes.
+    Optimizers and Scheduler classes are soon to be implemnted as well, but for now their classes remain empty
 
     All arrays and inputs of any kind are assumed to numpy arrays
     """
@@ -14,18 +16,27 @@ class Network:
     class Layer:
         """
         The Base class for all layer types to inherit form. Defines 2 methods that all layers must implement
-        1. feedForwad for the forward pass
-        2. backpropagation for the backward pass
+        1.  feedForwad for the forward pass. Transforms input into output for regular layers such as fully connected layers,
+            convolutional layers and activation layers. Performs utilities for other types of layers like reshape for flatten 
+            or switch off neurons for dropout.
+
+        2.  backpropagation for the backward pass. Transforms later errors to earlier errors for regular layers. And does backprop
+            utilities for other layers.
         """
 
         def __init__(self, inputLayer=None):
+            
+            if (inputLayer != None) and (not isinstance(inputLayer, Network.Layer)):
+                raise KeyError("inputLayer must be of the Layer type")
             self.inputLayer = inputLayer
             self.outputLayer = None # initialise with no child layer
 
-            if self.inputLayer != None: # if the current layer is connected to a parent layer, set it as the child layer of said parent
+            if self.inputLayer != None:
+                # if the current layer is connected to a parent layer, set it as the child layer of said parent
                 self.inputLayer.outputLayer = self
 
-        def feedForward(self, x, train=False):
+        def feedForward(self, x, train=False): 
+            # train parameter incase the layer performance differently between training and inference e.g Dropout
             raise NotImplementedError
         
         def backpropagate(self, delta, eta):
@@ -34,10 +45,20 @@ class Network:
     class Activation:
         """
         The Base class for all activation function types to inherit form. Defines 3 methods that all activation functiions must implement
-        1. value to evaluate the output of the activation function
-        2. derivative to compute the gradient of the activation function
-        3. derivative_from_output... does the same thing as derivative but computes from output instead of input and thus needs less
-        memory overhead and is more efficient as a result.
+        1. value methods returns the output of the activation function
+        2. derivative method returns the derivative of the activation function at the given input
+        3. derivative_from_output method returns the derivative of the activation function at the given output,
+            this is generally the most used method as it requires less computation and storage* than the derivative
+            method
+        
+        * During backpropagtion, the derivative is to be calculated. If the derivative from output methods is used,
+            It can use the activation from previous layer to calculate its values while the derivative method has to use the
+            z (activation function input) from previous layer. Since the activation from the previous layer is needed to find the 
+            gradient with respect to the weights anyways, the derivative method needs to keep track of one more variable.
+
+        This format allows custom activation functions to be defined as long it inherits from the base class 
+        and implements methods correctly.
+        It can then be passed as an input for the ActivationLayer class
         """
         
         def __init__(self):
@@ -57,6 +78,9 @@ class Network:
         The Base class for all cost function types to inherit form. Defines 2 methods that all cost functions must implement
         1. value to compute the cost of the network
         2. gradient to compute the gradient of the cost with respect to the output
+
+        This format allows custom Cost functions to be defined as long it inherits from the base class 
+        and implements methods correctly.
         """
         
         def __init__(self):
@@ -77,15 +101,12 @@ class Network:
     class Quadratic_cost(Cost):
         """
             The Quadratic Cost implementation.
-            To aid modularity, all Cost classes support two methods
-            1. Value method that returns the cost of the Network
-            2. Gradient method that returns the value of the gradient of the cost with respect to the activation
-
+            Uses the version of the quadractic cost that is scale by 1/2 to have a clean gradient value
         """
         def __init__(self):
             pass
 
-        def value(self, a, y): # uses the convention of quadractic cost being 1/2 (a - y) ** 2
+        def value(self, a, y):
             return np.sum(np.square(a - y)/2)
 
         def gradient(self, a, y):
@@ -96,12 +117,22 @@ class Network:
             The Cross Entropy Cost implementation.
             This version of the Cross Entropy Cost assumes there is no sigmoid activation explicitly defined and instead calculates from logits
             This is done for numerical stability and avoiding zero division errors like the plague.
+
+            Since the cost is calculated from logits instead of having the form:
+            -(ylna + (1-y)ln(1-a))
+            where a is the activation of the last layer and thus the input to the cost function
+
+            it instead uses 
+            ln(exp(z) + 1) - yz
+            where z is the output of the preceeding fully connected layer (without sigmoid activation) and thus the input 
+            to the cost function
         """
         
         def __init__(self):
             pass
 
-        def value(self, a, y): # returns the value of the cross entropy cost
+        def value(self, a, y):
+            # np.logaddexp(a, b) is a numerically stable way to compute log(exp(a) + exp(b))
             return np.sum(np.logaddexp(0, a) - a * y)
 
         def gradient(self, a, y):
@@ -111,24 +142,18 @@ class Network:
     class Sigmoid(Activation):
         """
             The Sigmoid (Logistic) activation.
-            Just like cost classes, the activation classes have a template.
-            They all support 3 methods
-            1. Value methods returns the output of the activation function
-            2. Derivative method returns the derivative of the activation function at the given input
-            3. Derivative from Output method returns the derivative of the activation function at the given output,
-               this is generally the most used method as it requires less computation and storage* than the derivative
-               method
-    
-            * During backpropagtion, the derivative is to be calculated. If the derivative from output methods is used,
-              It can use the activation from previous layer to calculate its values while the derivative method has to use the
-              z (activation function input) from previous layer. Since the activation from the previous layer is needed to find the 
-              gradient with respect to the weights anyways, the derivative method needs to keep track of one more variable.
+            A numerically stable implememtation of the sigmoid activation. Traditional sigmoid implementation runs into a tricky
+            problem. 
+            sigmoid(x) = 1/(1 + exp(-x)) overflows for very negative values of x (as x approaches -inf) and breaks.
+            sigmoid(x) = exp(x)/(exp(x) + 1) overflows for very positive value of x (as x approaches inf).
+
+            Using the np.logaddexp is an easy way to bypass this nuisance.
         """
         
         def __init__(self):
             pass
 
-        def value(self, x): # returns the output of the sigmoid function
+        def value(self, x): 
             # numerically stable as regular implementation could encounter overflow for near infinite values
             return np.exp(-np.logaddexp(0, -x))
 
@@ -141,7 +166,6 @@ class Network:
     class ReLU(Activation):
         """
         The ReLU (Rectified Linear Unit) activation.
-        Implements the three cardinal activation function requirements.
         """
 
         def __init__(self):
@@ -160,7 +184,6 @@ class Network:
     class Tanh(Activation):
         """
         The Tanh (Hyperbolic Tangent) activation.
-        Implements the three cardinal activation function requirements.
         """
 
         def __init__(self):
@@ -178,8 +201,9 @@ class Network:
     class Identity(Activation):
         """
         A do nothing activation for logits output or regression.
-        Implements the three cardinal activation function requirements.
-        An inefficient detour just to do nothing but needed until activation layers are created.
+
+        Created as inefficient detour to act as a quick fix until activation layers were created.
+        Now are just essentially useless but adds character.
         """
 
         def __init__(self):
@@ -206,21 +230,13 @@ class Network:
     class FullyConnectedLayer(Layer):
         """
             The Fully connected layer class.
-
-            Created to act as an element of a linked list
             
             The input is to be the integer value of the length of the expected input,
             the output is to be the integer value of the output (number of neurons in the layer),
             the inputLayer is a reference to the layer just before it in the Network,
 
-            the activation is a text prompt that acts basically as a key for an activation function,
-            it does not yet support initialisation using the object itself rather than text.
-
             weight_initialisation is a text prompt that can be either ("large" or "small"),
             it determines the spread of the initial set of random weights.
-
-            dropout is a boolean asking if the fully connected layer requires a dropout as well
-            Only 50% dropout is current supported
 
             an example of fully connected layers of a network could be
 
@@ -230,6 +246,8 @@ class Network:
             A current flaw of the class is the need to specify the exact size of the input, this is usually not a problem but can
             be frustating when used immediately after a Flatten layer
 
+            Should be fixed soon enough though
+
         """
 
         def __init__(self, input, output, inputLayer=None, weight_initialisation="small"):
@@ -238,7 +256,8 @@ class Network:
             self.inputSize = input
             self.outputSize = output
             
-            self.bias = np.random.standard_normal((output, 1)) # bias set to have dimensions of the neurons in the layer
+            # bias set to have dimensions of the neurons in the layer
+            self.bias = np.random.standard_normal((output, 1)) 
             
             if weight_initialisation.lower() == "small":
                 self.small_weight_initialisation()
@@ -247,42 +266,40 @@ class Network:
             else:
                 raise KeyError(f"{weight_initialisation} is not a valid weight initialisation.")
 
-        def large_weight_initialisation(self): # standard weight initialisation
+        def large_weight_initialisation(self): 
+            # standard weight initialisation
             self.weight = np.random.standard_normal((self.outputSize, self.inputSize))
 
-        def small_weight_initialisation(self): # smarter weight initialisation which adjusts for the size of the input layer
+        def small_weight_initialisation(self): 
+            # smarter weight initialisation which adjusts for the size of the input layer
             self.weight = np.random.standard_normal((self.outputSize, self.inputSize))/np.sqrt(self.inputSize) 
 
         def feedForward(self, x, train=False):
-            """
-                Transforms the input of the layer into the output.
-    
-                The input x should have the shape ... 
-                (length of input, batchsize)
-    
-                the train parameter describes if it is a regular feedforward or is part of a training session
-                This is currently only useful for dropout layers since they evaluate inputs differently depending on which
-                the modularity causes all layers to need to have the train parameter even if they do not need it.
-                kwargs should be able to do the job
-            """
-            self.lastInput = x # it's a secret tool that will help us later
+            # train parameter is completely useless since behavior is the same during training and inference
+
+
+            # it's a secret tool that will help us later
             # in actuality, it uses the assumption that a backprop step was preceeded by a feedforward step
             # by storing the input of the latest feedforward step, the needed variable for backprop will be available
+            self.lastInput = x 
             
             output = np.matmul(self.weight, x) + self.bias
             return output
 
         def backpropagate(self, delta, eta):
-            previous_layer_delta = None # initialise the previous layer delta as None in case there is no inputLayer (this staves off a bug of trying to return 
-                                        # a value that wasn't initialised)
+            # initialise the previous layer delta as None in case there is no inputLayer 
+            # this staves off a bug of trying to return a value that wasn't initialised
+            previous_layer_delta = None                
             
-            if self.inputLayer != None: # backpropagates the delta to find the delta of the previous layer
+            # backpropagates the delta to find the delta of the previous layer
+            if self.inputLayer != None: 
                 previous_layer_delta = np.matmul(self.weight.T, delta)
 
+            # will probably be refactored into the optimizer class soon
             # finds the grad with respect to weights and biases
             delta_weight = np.matmul(delta, self.lastInput.T)
-            delta_bias = np.sum(delta, axis=1).reshape(-1, 1) # the bias grad is initialy of shape (n, batch_size),
-                                                              # np.sum all the contribution of individual datapoints
+            delta_bias = np.sum(delta, axis=1).reshape(-1, 1)
+            # the bias grad is initialy of shape (n, batch_size), np.sum all the contribution of individual datapoints 
 
             # adjust the weight and bias accordingly
             self.weight -= eta * delta_weight
@@ -296,20 +313,10 @@ class Network:
         """
             The Convolutional layer class.
 
-            Created to act as an element of a linked list
-            
             The input is to be a tuple of the dimensions of the 2d image of the expected input,
-            The input channels is to be an integer value of the number of channnels of the expected input,
-
+            the input channels is to be an integer value of the number of channnels of the expected input,
             the kernel size represents the dimensions of the convolutional kernel of the layer,
-            
             the output channels is to be an integer value of the number of channnels the layer has,
-            
-            the inputLayer is a reference to the layer just before it in the Network,
-
-            the activation is a text prompt that acts basically as a key for an activation function,
-            it does not yet support initialisation using the object itself rather than text.
-
 
             an example of fully connected layers of a network could be
 
@@ -318,7 +325,7 @@ class Network:
 
             A current flaw of the class is that just like the fully connected layer there is a need to specify the exact size of the input,
             this is usually not a problem as long as a few basic rules are kept in mind.
-            The convolutional layer as it currently exists always pads the input, has no stride parameter and does not support pooling.
+            The convolutional layer as it currently exists always pads the input, has no stride parameter and does yet not support pooling.
             This means that value of "input" does not change for successive convolutional layers
             The output_channels for one convolutional layer is always the input_channels for the next
 
@@ -338,26 +345,26 @@ class Network:
         def __init__(self, input, input_channels, kernel_size, output_channels, inputLayer=None):
             super().__init__(inputLayer)
 
+            if kernel_size[0] != kernel_size[1]:
+                raise KeyError("Only square kernels supported")
+            if kernel_size[0] % 2 != 1:
+                raise KeyError("Only odd sized kernels supported")
             self.inputSize = input
 
-            self.kernel = np.random.standard_normal(kernel_size + (input_channels, output_channels))
             # The kernels are 4 dimensional arrays of shape (kernel_width, kernel_height, num_of_input_channels, num_of_output_channels)
-            
-            self.bias = np.random.standard_normal((output_channels, 1)) # the bias is of dimensions (output_channels, 1) since there is one shared bias for each channel
+            self.kernel = np.random.standard_normal(kernel_size + (input_channels, output_channels))
+
+            # the bias is of dimensions (output_channels, 1) since there is one shared bias for each channel
+            self.bias = np.random.standard_normal((output_channels, 1)) 
 
         def feedForward(self, x, train=False):
-            """
-            Transforms the input of the layer into the output.
+            # train parameter is completely useless since behavior is the same during training and inference
+
+            # see fully connected layer notes to understand
+            self.lastInput = x  
             
-            The input x should have the shape ... 
-            (width_of_2d_image, height_of_2d_image, number_of_channels, batch_size)
-            
-            The train parameter serves no function but is simply a result of modularity and that 
-            it does serve a function for fully connected layers that implement dropout
-            """
-            self.lastInput = x  # see fully connected layer notes to understand
-            
-            output = np.zeros((x.shape[0], x.shape[1], self.kernel.shape[3], x.shape[3])) # create an output array of zeros of the correct dimensions
+            # create an output array of zeros of the correct dimensions
+            output = np.zeros((x.shape[0], x.shape[1], self.kernel.shape[3], x.shape[3])) 
 
             # pad the input accordingly
             # the padding works by adding half of one less than the kernel size of that dimension (in zeros) to both ends of the input
@@ -367,7 +374,8 @@ class Network:
             
             x_pad = np.zeros((x.shape[0] + 2 * (self.kernel.shape[0] // 2), x.shape[1] + 2 * (self.kernel.shape[1] // 2), x.shape[2], x.shape[3]))
             x_pad[self.kernel.shape[0] // 2 : (self.kernel.shape[0] // 2) + x.shape[0], self.kernel.shape[1] // 2 : (self.kernel.shape[1] // 2) + x.shape[1], :, :] = x
-            x = x_pad # assign the padded input as the input
+            x = x_pad 
+            # assign the padded input as the input
 
             # loop through all elements in the output and calculate their values individually
             # Not quite because instead of also looping through each channel in the output,
@@ -386,15 +394,18 @@ class Network:
                     # reshape a couple of things to prep for the multiplication 
                     output[w][h][:, :] = np.sum(np.sum(np.sum(inter, axis=0), axis=0), axis=0).T # the transpose is used to retain the original order
 
-            output =  output + self.bias # add the bias as usual
+            # add the bias as usual
+            output =  output + self.bias 
             
             return output
 
         def backpropagate(self, delta, eta):
-            previous_layer_delta = None # initialise the previous layer delta as None in case there is no inputLayer (this staves off a bug of trying to return 
-                                        # a value that wasn't initialised)
+            # initialise the previous layer delta as None in case there is no inputLayer 
+            # (this staves off a bug of trying to return a value that wasn't initialised)
+            previous_layer_delta = None 
             
-            if self.inputLayer != None: # backpropagates the delta to find the delta of the previous layer
+            if self.inputLayer != None: 
+                # backpropagates the delta to find the delta of the previous layer
                 # just like in fully connected layers, backpropagation remains like feedforward in reverse
                 # The only real difference is that while fully connected layers used the transpose of the weight matrix,
                 # convolutional layers use the 180 degree rotation of the kernel.
@@ -450,10 +461,13 @@ class Network:
         def __init__(self, inputLayer=None, activation=None):
             super().__init__(inputLayer)
 
-            if activation == None: # checked first as not to unknowningly try to call None.lower()
+            # checks first as not to unknowningly try to call None.lower()
+            if activation == None: 
                 self.activation = Network.Identity()
             
-            elif isinstance(activation, str):   
+            # checks for the case of activation chosen using strings
+            elif isinstance(activation, str):
+                # strings must correspond to available type activations   
                 if activation.lower() == "sigmoid":
                     self.activation = Network.Sigmoid()
                 elif activation.lower() == "relu":
@@ -463,6 +477,7 @@ class Network:
                 else:
                     raise KeyError(f"{activation} is not a valid activation.")
                 
+            # checks if the activation is a valid object type instead
             elif isinstance(activation, Network.Activation):
                 self.activation = activation
 
@@ -470,17 +485,22 @@ class Network:
                 raise KeyError(f"{activation} is not a valid activation.")
 
         def feedForward(self, x, train=False):
+            # saves lastInput for computing backpropagation
             self.lastInput = x
             return self.activation.value(x)
         
         def backpropagate(self, delta, eta):
-            return (delta * self.activation.derivative(self.lastInput)) # we used derivative instead of derivative from output
-                                                                        # this is because self.lastInput is a "z" not an "a
+            # we used derivative instead of derivative from output this is because self.lastInput is a "z" not an "a"
+            return (delta * self.activation.derivative(self.lastInput)) 
 
     class Dropout(Layer):
         """"
         "1D" dropout for fully connected layers and convolutional layers as well. Drops out individual neurons regardless of 
         if the input is a fully connected layer or a convolutional layer. 
+
+        Implements the modern version of dropout which adjusts the value during training and leaves inference normal.
+        Has the advantage of being able to completely discard the dropout layer after training and 
+        pretending nothing ever happend.
         """
 
         def __init__(self, inputLayer, p=0.5):
@@ -490,24 +510,25 @@ class Network:
             self.p = p
 
         def feedForward(self, x, train=False):
+            # during training neurons are masked out randomly bur left as is during inference
             if train:
+                # the mask has the same dimensions as the input except for the last dimension (batch) which is one
+                # this is important as it avoids using different masks for different data points in the same batch
+                # the input is scaled up by the 1/(1-p) to ensure the expected value of the layer remains as during inference
                 self.mask = np.expand_dims(np.random.binomial(1, 1 - self.p, size=x.shape[:-1]).astype(np.float32), axis=-1)
                 return (self.mask * x) / (1 - self.p)
             else:
                 return x
         
         def backpropagate(self, delta, eta):
+            # backpass is very similar to forward pass
             return (self.mask * delta) / (1 - self.p)
 
     class Flatten(Layer):
         """
             Flatten class
-
-            Acts as a layer and thus has the methods that are expected such as feedForward and backpropagate
             
             It acts to flatten a convolutional layer's output which is 4d to a 2d form that can be used by fully connnected layers.
-
-            It has only one parameter which is inputLayer that is expected to be a convolutional layer    
         """
 
         def __init__(self, inputLayer=None):
@@ -517,9 +538,8 @@ class Network:
             self.lastInput = None
 
         def feedForward(self, x, train=False):
-            # train parameter as expected
-            # feedforward only reshapes the input to expected form
-            
+            # useless train parameter as expected
+            # feedforward only reshapes the input to expected form       
             self.lastInput = x
             return np.reshape(x, (-1, x.shape[-1]))
 
@@ -547,6 +567,7 @@ class Network:
         self.conv = conv
 
     def compile(self, firstLayer):
+        # could potentially be removed from being called explicitly by incorporating into the __init__ method
         # compiles the Network by looping through the network and setting the first and layers to appropriate values
         self.firstLayer = firstLayer
         walk = firstLayer
@@ -578,25 +599,57 @@ class Network:
 
             epochs specify the amount of training cycles through the entire training data
 
-            cost is a text prompt that specifies what cost will be used
+            cost could be a text prompt that specifies what cost will be used
             e.g 
             "cross entropy"
-            "quadratic
+            "quadratic"
+
+            or a entry of the specific cost type needed
+            e.g
+            Network.CrossEntropy_cost()
+            Network.Quadratic_cost()
 
             track_training_metrics determines if the training metrics are to be evaluated after every epoch or just the test will do
 
             finally the metrics are returned at the end of the training in the form
             ((training_costs, training_accuracies) , (test_costs, test_accuracies))
-            
+
+            A simple showcase of what this Network in action could look like is 
+
+            cnn1 = Network.ConvolutionalLayer((28, 28), 1, (3, 3), 8)
+            act1 = Network.ActivationLayer(cnn1, Network.Sigmoid())
+            flat1 = Network.Flatten(act1)
+            fcl1 = Network.FullyConnectedLayer(28 * 28 * 8, 128, flat1)
+            act2 = Network.ActivationLayer(fcl1, Network.Sigmoid())
+            drop1 = Network.Dropout(act2, p=0.2)
+            fcl2 = Network.FullyConnectedLayer(128, 10, drop1)
+
+            net = Network()
+            net.compile(cnn1)
+
+            net.train(X_train, y_train, X_test, y_test, 0.05, 20, 50)
+
+            NB: In the above case, the network doesn't use a final activation layer and returns logits since it uses the 
+            default cross entropy cost during training.
+                        
         """
-        
-        if cost.lower() == "cross entropy":
-            self.cost = Network.CrossEntropy_cost()
-        elif cost.lower() == "quadratic":
-            self.cost = Network.Quadratic_cost()
-        else:
-            raise KeyError(f"{cost} is not a valid weight initialisation.")
+
+        # check if it is a string
+        if isinstance(cost, str):
+            if cost.lower() == "cross entropy":
+                self.cost = Network.CrossEntropy_cost()
+            elif cost.lower() == "quadratic":
+                self.cost = Network.Quadratic_cost()
+            else:
+                raise KeyError(f"{cost} is not a valid Cost function.")
             
+        elif isinstance(cost, Network.Activation):
+            if isinstance(cost, Network.CrossEntropy_cost):
+                self.cost = cost
+
+        else:
+                raise KeyError(f"{cost} is not a valid Cost function.")
+           
         training_accuracies, training_costs = [], []
         test_accuracies, test_costs = [], []
 
@@ -681,6 +734,7 @@ class Network:
         #    result = np.argmax(self.predict(X), axis=0)
         #    solution = np.argmax(y, axis=0)
         #    return np.sum(result == solution)
+        #    result works even when logits not probabilities are used since argmax works regardless
         # This above version will work but large enough datasets working on Networks with large enough layers (i.e a fully connected layer with a 
         # large "input_size * output_size" - which can occur after a Flatten layer) can run into Memory errors using the first implementation
         # The below implementation basically calculates the accuracy in chunks and completes the dataset in 100 chunks
@@ -715,8 +769,11 @@ class Network:
             
 # Final thoughts
 # In addition to the issues listed throughout the inline comments,
-# there is probably a need to restructure the classes
-# Having base classes for Layers, Costs, and Activations that have predefined methods and can be inherited from will be useful
-# Having subsequent layers infer redundant parameters will also be useful
+# there are still lacking base classes for Optimizers, Schedulers and many more
+# Layers with multiple types like convolutional and dropout are getting away with using the group name for the popular form for now
+# 1d and 3d conv net as well as 2d and 3d dropout will be implemented in the future causing a number of name changes
+# Having subsequent layers infer redundant parameters will be useful
+# specification of sizes may need to go
+# sequential like method that automatically bundles layers and thus doesn't need explicit calling of previous layers could be useful
+# Not needing to call compile explicitly may need to go
 # It could also help to put trailer layers in the Network class as attributes as this is the more standard doubly-linked list format and can definitely help
-# Having a separate dropout layer would prove useful
