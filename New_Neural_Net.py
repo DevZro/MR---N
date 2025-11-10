@@ -94,19 +94,19 @@ class Network:
     class CrossEntropy_cost(Cost):
         """
             The Cross Entropy Cost implementation.
+            This version of the Cross Entropy Cost assumes there is no sigmoid activation explicitly defined and instead calculates from logits
+            This is done for numerical stability and avoiding zero division errors like the plague.
         """
         
         def __init__(self):
             pass
 
         def value(self, a, y): # returns the value of the cross entropy cost
-            # np.nan_to_num function used to take care of the edge case of (0 * log(0)) ...
-            # ... which is although undefinded, is implied to take the value of lim x -> 0 (x* log(x)) which is 0
-            return np.sum(np.nan_to_num(-y*np.log(a)) - np.nan_to_num((1-y)*np.log(1-a)))
+            return np.sum(np.logaddexp(0, a) - a * y)
 
         def gradient(self, a, y):
-            # zero division error occurs and thus requires the np.nan_to_num method
-            return (np.nan_to_num(-y/a) + np.nan_to_num((1-y)/(1-a)))
+            # would be cleaner to use sigmoid(a) - y but sigmoid is a class not a function
+            return (np.exp(-np.logaddexp(0, -a)) - y)
 
     class Sigmoid(Activation):
         """
