@@ -596,11 +596,10 @@ class Network:
         else:
             raise KeyError(f"{layer} does not support computeOutputSize")
 
-    def __init__(self, conv=False):
+    def __init__(self):
         # currently a quick fix to use the conv parameter to show that it is a conv net as some methods act differently depending on what form of NN it is 
         self.firstLayer = None
         self.lastLayer = None
-        self.conv = conv
 
     def compile(self, firstLayer):
         # could potentially be removed from being called explicitly by incorporating into the __init__ method
