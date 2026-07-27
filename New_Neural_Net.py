@@ -237,7 +237,33 @@ class Network:
             return np.ones(y.shape)
         
     class SGD(Optimizer):
-        pass
+        """
+        Optimizer for Stochastic Gradient Descent.
+        Inherits from the base optimizer class.
+        """
+        def __init__(self, eta, mini_batch_size):
+            self.mini_batch_size = mini_batch_size
+            self.eta = eta 
+
+        def run(self, network, cost_gradient):
+            delta = cost_gradient
+                    
+            walk = network.lastLayer
+                    
+            while walk != None:
+                if isinstance(walk, Network.FullyConnectedLayer):
+                    # finds the grad with respect to weights and biases
+                    delta_weight = np.matmul(delta, walk.lastInput.T)
+                    delta_bias = np.sum(delta, axis=1).reshape(-1, 1)
+                    # the bias grad is initialy of shape (n, batch_size), np.sum all the contribution of individual datapoints 
+                    
+                    # adjust the weight and bias accordingly
+                    walk.weight -= self.eta * delta_weight
+                    walk.bias -= self.eta * delta_bias
+
+                delta = walk.backpropagate(delta, self.eta)
+                walk = walk.inputLayer
+
 
     class Momentum(Optimizer):
         pass
@@ -308,20 +334,11 @@ class Network:
             # initialise the previous layer delta as None in case there is no inputLayer 
             # this staves off a bug of trying to return a value that wasn't initialised
             previous_layer_delta = None                
-            
+
+    
             # backpropagates the delta to find the delta of the previous layer
             if self.inputLayer != None: 
                 previous_layer_delta = np.matmul(self.weight.T, delta)
-
-            # will probably be refactored into the optimizer class soon
-            # finds the grad with respect to weights and biases
-            delta_weight = np.matmul(delta, self.lastInput.T)
-            delta_bias = np.sum(delta, axis=1).reshape(-1, 1)
-            # the bias grad is initialy of shape (n, batch_size), np.sum all the contribution of individual datapoints 
-
-            # adjust the weight and bias accordingly
-            self.weight -= eta * delta_weight
-            self.bias -= eta * delta_bias
 
             return previous_layer_delta
             
@@ -605,7 +622,7 @@ class Network:
             walk = walk.outputLayer
         return a
 
-    def train(self, X_train, y_train, X_test, y_test, eta, mini_batch_size, epochs, cost="cross entropy", optimizer=SGD(), track_training_metrics=False):
+    def train(self, X_train, y_train, X_test, y_test, eta, mini_batch_size, epochs, cost="cross entropy", optimizer=None, track_training_metrics=False):
         """
             Starts a training session
 
@@ -667,7 +684,12 @@ class Network:
 
         else:
                 raise KeyError(f"{cost} is not a valid Cost function.")
-           
+
+        if not optimizer:
+            raise KeyError("Optimizer not given")
+        elif not isinstance(optimizer, Network.Optimizer):
+            raise KeyError(f"{optimizer} is not a valid optimizer.")
+        
         training_accuracies, training_costs = [], []
         test_accuracies, test_costs = [], []
 
@@ -705,7 +727,10 @@ class Network:
                 # the batches are divided and fit one after the other
                 # convolutional data is once again handled separately
                 if not self.conv:
-                    self.fit(current_X_train[:, b * mini_batch_size : (b + 1) * mini_batch_size], current_y_train[:, b * mini_batch_size : (b + 1) * mini_batch_size], eta)
+                    a = self.predict(current_X_train[:, b * mini_batch_size : (b + 1) * mini_batch_size], True)
+                    cost_gradient = self.cost.gradient(a , current_y_train[:, b * mini_batch_size : (b + 1) * mini_batch_size])
+                    
+                    optimizer.run(self, cost_gradient)
                 else:
                     self.fit(current_X_train[:, :, :, b * mini_batch_size : (b + 1) * mini_batch_size], current_y_train[:, b * mini_batch_size : (b + 1) * mini_batch_size], eta)
                 
