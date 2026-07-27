@@ -622,7 +622,7 @@ class Network:
             walk = walk.outputLayer
         return a
 
-    def train(self, X_train, y_train, X_test, y_test, eta, mini_batch_size, epochs, cost="cross entropy", optimizer=None, track_training_metrics=False):
+    def train(self, X_train, y_train, X_test, y_test, epochs, cost="cross entropy", optimizer=None, track_training_metrics=False):
         """
             Starts a training session
 
@@ -716,7 +716,8 @@ class Network:
             current_X_train = np.moveaxis(current_X_train, 0, -1)
             current_y_train = np.transpose(current_y_train)
                 
-            
+            mini_batch_size = optimizer.mini_batch_size
+
             for b in range(math.ceil(training_size/mini_batch_size)):
                 # the batches are divided and fit one after the other
                 # convolutional data is once again handled separately
