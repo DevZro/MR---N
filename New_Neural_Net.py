@@ -93,7 +93,25 @@ class Network:
             raise NotImplementedError
         
     class Optimizer:
-        pass
+        """
+        Optimizer base class. All optimizers are to inherit from this class.
+        It is used within the train method to update the weights of the network.
+
+        Various different weight update rules are usable as instances of the Optimizer class such as 
+        SGD, Momentum and Adam.
+
+        All instances of Optimizers must have the run method implemented. This is the method called
+        for every mini-batch to update the weights.
+
+        Custom optimizers are thus usable as long as they inherit from the base class and have the
+        appropriate method implemented.
+        """
+
+        def __init__(self):
+            pass
+
+        def run(self):
+            raise NotImplementedError
 
     class Scheduler:
         pass
@@ -334,7 +352,7 @@ class Network:
             Better customisability will be added later on
 
             Thus far, the Convolutional class has only been built and tested on the philosophy of kernels having odd number sizes for each dimensions
-            so it could break if a kerenel_size of (4, 4) is used
+            so it could break if a kernel_size of (4, 4) is used
 
             Finally, since there is no reverse of the Flatten class, a convolutional layer can never come after a Fully connected layer.
             It is dubious if there will be any significance to a structure that allows convolutional layers to come after fully connected ones but
@@ -587,7 +605,7 @@ class Network:
             walk = walk.outputLayer
         return a
 
-    def train(self, X_train, y_train, X_test, y_test, eta, mini_batch_size, epochs, cost="cross entropy", track_training_metrics=False):
+    def train(self, X_train, y_train, X_test, y_test, eta, mini_batch_size, epochs, cost="cross entropy", optimizer=SGD(), track_training_metrics=False):
         """
             Starts a training session
 
