@@ -261,6 +261,34 @@ class Network:
                     walk.weight -= self.eta * delta_weight
                     walk.bias -= self.eta * delta_bias
 
+                elif isinstance(walk, Network.ConvolutionalLayer):
+                    # initialise the gradient with respect to the weights as a matrix of zeros
+                    # it has one more dimension than the kernel
+                    # the last dimension is the number of data points in the batch (batch_size)
+                    # similar to the feedforward calculation, a section of the padded input data is extracted.
+                    # this is the section that is corresponds to all values of a given coordinate on the delta
+                    # both matrices are reshaped appropriately and multiplied to give the resulting weight gradient
+                    # since the weights are shared for all neurons, the results for all coordinates are added together
+                    # the resulting value is summed over the last axis to combine all data in the batch
+                                
+                    delta_weight = np.zeros(walk.kernel.shape + (delta.shape[3],))
+                                
+                    input_pad = np.zeros((walk.lastInput.shape[0] + 2 * (walk.kernel.shape[0] // 2), walk.lastInput.shape[1] + 2 * (walk.kernel.shape[1] // 2), walk.lastInput.shape[2], walk.lastInput.shape[3]))
+                    input_pad[walk.kernel.shape[0] // 2 : (walk.kernel.shape[0] // 2) + walk.lastInput.shape[0], walk.kernel.shape[1] // 2 : (walk.kernel.shape[1] // 2) + walk.lastInput.shape[1], :, :] = walk.lastInput
+                           
+                    
+                    for h in range(delta.shape[1]):
+                        for w in range(delta.shape[0]):
+                            delta_weight += input_pad[w : w + walk.kernel.shape[0], h : h + walk.kernel.shape[1], :, :].reshape((walk.kernel.shape[0], walk.kernel.shape[1], input_pad.shape[2], 1, input_pad.shape[3])) * delta[w][h][:, :].reshape(1, 1, 1, delta.shape[2], delta.shape[3])
+                           
+                    delta_weight = np.sum(delta_weight, axis=-1)
+                                
+                    delta_bias = np.sum(np.sum(np.sum(delta, axis=0), axis=0), axis=1).reshape(-1, 1)
+                    # the bias gradient is found by summing through all the delta values for all coordinate points an finally for all data in the batch 
+                    
+                    walk.kernel -= self.eta * delta_weight
+                    walk.bias -= self.eta * delta_bias
+
                 delta = walk.backpropagate(delta, self.eta)
                 walk = walk.inputLayer
 
@@ -461,33 +489,6 @@ class Network:
                         sub_delta = delta_pad[w : w + kernel.shape[0] , h : h + kernel.shape[1], : , :]
                         inter =  sub_delta.reshape((sub_delta.shape) + (1,)) * kernel.reshape((kernel.shape[0], kernel.shape[1], kernel.shape[2], 1, kernel.shape[3]))
                         previous_layer_delta[w][h][:, :] = np.sum(np.sum(np.sum(inter, axis=0), axis=0), axis=0).T
-
-            # initialise the gradient with respect to the weights as a matrix of zeros
-            # it has one more dimension than the kernel
-            # the last dimension is the number of data points in the batch (batch_size)
-            # similar to the feedforward calculation, a section of the padded input data is extracted.
-            # this is the section that is corresponds to all values of a given coordinate on the delta
-            # both matrices are reshaped appropriately and multiplied to give the resulting weight gradient
-            # since the weights are shared for all neurons, the results for all coordinates are added together
-            # the resulting value is summed over the last axis to combine all data in the batch
-            
-            delta_weight = np.zeros(self.kernel.shape + (delta.shape[3],))
-            
-            input_pad = np.zeros((self.lastInput.shape[0] + 2 * (self.kernel.shape[0] // 2), self.lastInput.shape[1] + 2 * (self.kernel.shape[1] // 2), self.lastInput.shape[2], self.lastInput.shape[3]))
-            input_pad[self.kernel.shape[0] // 2 : (self.kernel.shape[0] // 2) + self.lastInput.shape[0], self.kernel.shape[1] // 2 : (self.kernel.shape[1] // 2) + self.lastInput.shape[1], :, :] = self.lastInput
-       
-
-            for h in range(delta.shape[1]):
-                for w in range(delta.shape[0]):
-                    delta_weight += input_pad[w : w + self.kernel.shape[0], h : h + self.kernel.shape[1], :, :].reshape((self.kernel.shape[0], self.kernel.shape[1], input_pad.shape[2], 1, input_pad.shape[3])) * delta[w][h][:, :].reshape(1, 1, 1, delta.shape[2], delta.shape[3])
-       
-            delta_weight = np.sum(delta_weight, axis=-1)
-            
-            delta_bias = np.sum(np.sum(np.sum(delta, axis=0), axis=0), axis=1).reshape(-1, 1)
-            # the bias gradient is found by summing through all the delta values for all coordinate points an finally for all data in the batch 
-
-            self.kernel -= eta * delta_weight
-            self.bias -= eta * delta_bias
 
             return previous_layer_delta
         
@@ -703,10 +704,7 @@ class Network:
             # the data is transposed inorder to keep the length of the data in front
             # the transpose is returned after shuffling but it is needed in order to shuffle about the correct axis
             # convolutional data is of a different shape to regular data and is thus handled differently
-            if self.conv:
-                current_X_train = np.transpose(current_X_train, (3, 0, 1, 2))
-            else:
-                current_X_train = np.transpose(current_X_train, (1, 0))
+            current_X_train = np.moveaxis(current_X_train, -1, 0)
             current_y_train = np.transpose(current_y_train)
 
             # a seed is chosen at random and this seed is then used to ensure the X and y training data are shuffled identically
@@ -715,24 +713,18 @@ class Network:
             np.random.shuffle(current_X_train)
             np.random.seed(seed)
             np.random.shuffle(current_y_train)
-
-            if self.conv:
-                current_X_train = np.transpose(current_X_train, (1, 2, 3, 0))
-            else:
-                current_X_train = np.transpose(current_X_train, (1, 0))
+            
+            current_X_train = np.moveaxis(current_X_train, 0, -1)
             current_y_train = np.transpose(current_y_train)
                 
             
             for b in range(math.ceil(training_size/mini_batch_size)):
                 # the batches are divided and fit one after the other
                 # convolutional data is once again handled separately
-                if not self.conv:
-                    a = self.predict(current_X_train[:, b * mini_batch_size : (b + 1) * mini_batch_size], True)
-                    cost_gradient = self.cost.gradient(a , current_y_train[:, b * mini_batch_size : (b + 1) * mini_batch_size])
-                    
-                    optimizer.run(self, cost_gradient)
-                else:
-                    self.fit(current_X_train[:, :, :, b * mini_batch_size : (b + 1) * mini_batch_size], current_y_train[:, b * mini_batch_size : (b + 1) * mini_batch_size], eta)
+                a = self.predict(current_X_train[..., b * mini_batch_size : (b + 1) * mini_batch_size], True)
+                cost_gradient = self.cost.gradient(a , current_y_train[:, b * mini_batch_size : (b + 1) * mini_batch_size])
+
+                optimizer.run(self, cost_gradient)
                 
             print(f"Epoch {i}")
 
@@ -788,10 +780,7 @@ class Network:
    
         total = 0
         for i in range(100):
-            if self.conv:
-                result = np.argmax(self.predict(X[:, :, :, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)]), axis=0)
-            else:
-                result = np.argmax(self.predict(X[:, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)]), axis=0)
+            result = np.argmax(self.predict(X[..., i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)]), axis=0)
             solution = np.argmax(y[:, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)], axis=0)
             total += np.sum(result == solution)
         return total
@@ -803,10 +792,7 @@ class Network:
         # the caveats of the check_accuracy method all apply      
         cost_value = 0
         for i in range(100):
-            if self.conv:
-                a = self.predict(X[:, :, :, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)])
-            else:
-                a = self.predict(X[:, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)])
+            a = self.predict(X[..., i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)])
             cost_value += self.cost.value(a, y[:, i*(X.shape[-1]//100) : (i+1)*(X.shape[-1]//100)])/y.shape[1]
         return cost_value
             
