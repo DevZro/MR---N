@@ -295,7 +295,86 @@ class Network:
 
 
     class Momentum(Optimizer):
-        pass
+        """
+        Optimizer for Momentum.
+        Inherits from the base optimizer class.
+        """
+        def __init__(self, network, eta, mini_batch_size, mu):
+            self.network = network 
+            self.mini_batch_size = mini_batch_size
+            self.eta = eta 
+            self.mu = mu
+            self.v = []
+
+            walk = network.lastLayer
+
+            while walk != None:
+                self.v.append(None)
+                walk = walk.inputLayer
+
+        def run(self, cost_gradient):
+            delta = cost_gradient
+                    
+            walk = self.network.lastLayer
+            i = 0
+                    
+            while walk != None:
+                if isinstance(walk, Network.FullyConnectedLayer):
+                    # finds the grad with respect to weights and biases
+                    if not self.v[i]:
+                        self.v[i] = []
+                        self.v[i].append(self.eta * np.matmul(delta, walk.lastInput.T))
+                        self.v[i].append(self.eta * np.sum(delta, axis=1).reshape(-1, 1))
+                    else:
+                        self.v[i][0] = self.mu * self.v[i][0] + self.eta * np.matmul(delta, walk.lastInput.T)
+                        self.v[i][1] = self.mu * self.v[i][1] + self.eta * np.sum(delta, axis=1).reshape(-1, 1)
+
+                    # the bias grad is initialy of shape (n, batch_size), np.sum all the contribution of individual datapoints 
+                    
+                    # adjust the weight and bias accordingly
+                    walk.weight -= self.v[i][0]
+                    walk.bias -= self.v[i][1]
+
+                elif isinstance(walk, Network.ConvolutionalLayer):
+                    # initialise the gradient with respect to the weights as a matrix of zeros
+                    # it has one more dimension than the kernel
+                    # the last dimension is the number of data points in the batch (batch_size)
+                    # similar to the feedforward calculation, a section of the padded input data is extracted.
+                    # this is the section that is corresponds to all values of a given coordinate on the delta
+                    # both matrices are reshaped appropriately and multiplied to give the resulting weight gradient
+                    # since the weights are shared for all neurons, the results for all coordinates are added together
+                    # the resulting value is summed over the last axis to combine all data in the batch
+                                
+        
+                    delta_weight = np.zeros(walk.kernel.shape + (delta.shape[3],))
+                                
+                    input_pad = np.zeros((walk.lastInput.shape[0] + 2 * (walk.kernel.shape[0] // 2), walk.lastInput.shape[1] + 2 * (walk.kernel.shape[1] // 2), walk.lastInput.shape[2], walk.lastInput.shape[3]))
+                    input_pad[walk.kernel.shape[0] // 2 : (walk.kernel.shape[0] // 2) + walk.lastInput.shape[0], walk.kernel.shape[1] // 2 : (walk.kernel.shape[1] // 2) + walk.lastInput.shape[1], :, :] = walk.lastInput
+                            
+                    
+                    for h in range(delta.shape[1]):
+                        for w in range(delta.shape[0]):
+                            delta_weight += input_pad[w : w + walk.kernel.shape[0], h : h + walk.kernel.shape[1], :, :].reshape((walk.kernel.shape[0], walk.kernel.shape[1], input_pad.shape[2], 1, input_pad.shape[3])) * delta[w][h][:, :].reshape(1, 1, 1, delta.shape[2], delta.shape[3])
+                            
+                    delta_weight = np.sum(delta_weight, axis=-1)
+
+                    if not self.v[i]:
+                        self.v[i] = []
+                        self.v[i].append(self.eta * delta_weight)
+                        self.v[i].append(self.eta * np.sum(np.sum(np.sum(delta, axis=0), axis=0), axis=1).reshape(-1, 1))
+
+                    else:
+                        self.v[i][0] = self.mu * self.v[i][0] + self.eta * delta_weight
+                        self.v[i][1] = self.mu * self.v[i][1] + self.eta * np.sum(np.sum(np.sum(delta, axis=0), axis=0), axis=1).reshape(-1, 1)
+                                
+                    # the bias gradient is found by summing through all the delta values for all coordinate points an finally for all data in the batch 
+                    
+                    walk.kernel -= self.v[i][0]
+                    walk.bias -= self.v[i][1]
+
+                delta = walk.backpropagate(delta, self.eta)
+                walk = walk.inputLayer
+                i += 1
 
     class Adam(Optimizer):
         pass
