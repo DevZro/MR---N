@@ -241,14 +241,15 @@ class Network:
         Optimizer for Stochastic Gradient Descent.
         Inherits from the base optimizer class.
         """
-        def __init__(self, eta, mini_batch_size):
+        def __init__(self, network, eta, mini_batch_size):
+            self.network = network
             self.mini_batch_size = mini_batch_size
             self.eta = eta 
 
-        def run(self, network, cost_gradient):
+        def run(self, cost_gradient):
             delta = cost_gradient
                     
-            walk = network.lastLayer
+            walk = self.network.lastLayer
                     
             while walk != None:
                 if isinstance(walk, Network.FullyConnectedLayer):
@@ -724,7 +725,7 @@ class Network:
                 a = self.predict(current_X_train[..., b * mini_batch_size : (b + 1) * mini_batch_size], True)
                 cost_gradient = self.cost.gradient(a , current_y_train[:, b * mini_batch_size : (b + 1) * mini_batch_size])
 
-                optimizer.run(self, cost_gradient)
+                optimizer.run(cost_gradient)
                 
             print(f"Epoch {i}")
 
