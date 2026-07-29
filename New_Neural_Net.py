@@ -13,6 +13,137 @@ class Network:
     All arrays and inputs of any kind are assumed to numpy arrays
     """
 
+    @staticmethod
+    def train(X_train, y_train, X_test, y_test, epochs, cost="cross entropy", optimizer=None, track_training_metrics=False):
+        """
+            Starts a training session
+
+            expected parameters include the X and y values for the training and test data
+
+            the eta is the learning rate
+
+            mini_batch_size specifies how many data points should be evaluated before update to weights
+
+            epochs specify the amount of training cycles through the entire training data
+
+            cost could be a text prompt that specifies what cost will be used
+            e.g 
+            "cross entropy"
+            "quadratic"
+
+            or a entry of the specific cost type needed
+            e.g
+            Network.CrossEntropy_cost()
+            Network.Quadratic_cost()
+
+            track_training_metrics determines if the training metrics are to be evaluated after every epoch or just the test will do
+
+            finally the metrics are returned at the end of the training in the form
+            ((training_costs, training_accuracies) , (test_costs, test_accuracies))
+
+            A simple showcase of what this Network in action could look like is 
+
+            cnn1 = Network.ConvolutionalLayer((28, 28), 1, (3, 3), 8)
+            act1 = Network.ActivationLayer(cnn1, Network.Sigmoid())
+            flat1 = Network.Flatten(act1)
+            fcl1 = Network.FullyConnectedLayer(28 * 28 * 8, 128, flat1)
+            act2 = Network.ActivationLayer(fcl1, Network.Sigmoid())
+            drop1 = Network.Dropout(act2, p=0.2)
+            fcl2 = Network.FullyConnectedLayer(128, 10, drop1)
+
+            net = Network()
+            net.compile(cnn1)
+
+            net.train(X_train, y_train, X_test, y_test, 0.05, 20, 50)
+
+            NB: In the above case, the network doesn't use a final activation layer and returns logits since it uses the 
+            default cross entropy cost during training.
+                        
+        """
+        # Outdated comment
+
+        if not optimizer:
+            raise KeyError("Optimizer not given")
+        elif not isinstance(optimizer, Network.Optimizer):
+            raise KeyError(f"{optimizer} is not a valid optimizer.")
+
+        # check if it is a string
+        if isinstance(cost, str):
+            if cost.lower() == "cross entropy":
+                optimizer.network.cost = Network.CrossEntropy_cost()
+            elif cost.lower() == "quadratic":
+                optimizer.network.cost = Network.Quadratic_cost()
+            else:
+                raise KeyError(f"{cost} is not a valid Cost function.")
+            
+        elif isinstance(cost, Network.Activation):
+            if isinstance(cost, Network.CrossEntropy_cost):
+                optimizer.network.cost = cost
+
+        else:
+                raise KeyError(f"{cost} is not a valid Cost function.")
+        
+        training_accuracies, training_costs = [], []
+        test_accuracies, test_costs = [], []
+
+        training_size = y_train.shape[1]
+        for i in range(epochs):
+            # at the start of every epoch new training and test data clones are created and shuffled
+            
+            current_X_train = X_train[:, :]
+            current_y_train = y_train[:, :]
+
+            # the data is transposed inorder to keep the length of the data in front
+            # the transpose is returned after shuffling but it is needed in order to shuffle about the correct axis
+            # convolutional data is of a different shape to regular data and is thus handled differently
+            current_X_train = np.moveaxis(current_X_train, -1, 0)
+            current_y_train = np.transpose(current_y_train)
+
+            # a seed is chosen at random and this seed is then used to ensure the X and y training data are shuffled identically
+            seed = random.randint(1, 100000)
+            np.random.seed(seed)
+            np.random.shuffle(current_X_train)
+            np.random.seed(seed)
+            np.random.shuffle(current_y_train)
+            
+            current_X_train = np.moveaxis(current_X_train, 0, -1)
+            current_y_train = np.transpose(current_y_train)
+                
+            mini_batch_size = optimizer.mini_batch_size
+
+            for b in range(math.ceil(training_size/mini_batch_size)):
+                # the batches are divided and fit one after the other
+                # convolutional data is once again handled separately
+                a = optimizer.network.predict(current_X_train[..., b * mini_batch_size : (b + 1) * mini_batch_size], True)
+                cost_gradient = optimizer.network.cost.gradient(a , current_y_train[:, b * mini_batch_size : (b + 1) * mini_batch_size])
+
+                optimizer.run(cost_gradient)
+                
+            print(f"Epoch {i}")
+
+            if track_training_metrics:
+                # calculate and keep track of training metrics if needed
+                training_accuracy = optimizer.network.check_accuracy(X_train, y_train)
+                training_cost = optimizer.network.calculate_cost(X_train, y_train)
+
+                training_accuracies.append(training_accuracy)
+                training_costs.append(training_cost)
+
+                print(f"Training Accuracy: {training_accuracy} out of {y_train.shape[1]}")
+                print(f"Training Cost: {training_cost} ")
+
+                
+            test_accuracy = optimizer.network.check_accuracy(X_test, y_test)
+            test_cost = optimizer.network.calculate_cost(X_test, y_test)
+
+            test_accuracies.append(test_accuracy)
+            test_costs.append(test_cost)
+
+            print(f"Test Accuracy: {test_accuracy} out of {y_test.shape[1]}")
+            print(f"Test Cost: {test_cost}")
+            
+        return((training_costs, training_accuracies) , (test_costs, test_accuracies))
+
     class Layer:
         """
         The Base class for all layer types to inherit form. Defines 2 methods that all layers must implement
@@ -558,7 +689,7 @@ class Network:
                 # I do wonder what the deeper mathematical connection between these ideas and connections is though
                 # Basically everything else remains the same including the padding of the delta just like with feedforward
                 
-                previous_layer_delta = np.zeroes(delta.shape)
+                previous_layer_delta = np.zeros((self.inputSize[0], self.inputSize[1], self.kernel.shape[2], self.lastInput.shape[-1]))
                 kernel = np.transpose(np.rot90(self.kernel, 2), (0, 1, 3, 2))
                 
                 delta_pad = np.zeros((delta.shape[0] + 2 * (kernel.shape[0] // 2), delta.shape[1] + 2 * (kernel.shape[1] // 2), delta.shape[2], delta.shape[3]))
@@ -571,6 +702,7 @@ class Network:
                         previous_layer_delta[w][h][:, :] = np.sum(np.sum(np.sum(inter, axis=0), axis=0), axis=0).T
 
             return previous_layer_delta
+        
         
     class ActivationLayer(Layer):
         
@@ -701,135 +833,6 @@ class Network:
             a = walk.feedForward(a, train)
             walk = walk.outputLayer
         return a
-
-    def train(self, X_train, y_train, X_test, y_test, epochs, cost="cross entropy", optimizer=None, track_training_metrics=False):
-        """
-            Starts a training session
-
-            expected parameters include the X and y values for the training and test data
-
-            the eta is the learning rate
-
-            mini_batch_size specifies how many data points should be evaluated before update to weights
-
-            epochs specify the amount of training cycles through the entire training data
-
-            cost could be a text prompt that specifies what cost will be used
-            e.g 
-            "cross entropy"
-            "quadratic"
-
-            or a entry of the specific cost type needed
-            e.g
-            Network.CrossEntropy_cost()
-            Network.Quadratic_cost()
-
-            track_training_metrics determines if the training metrics are to be evaluated after every epoch or just the test will do
-
-            finally the metrics are returned at the end of the training in the form
-            ((training_costs, training_accuracies) , (test_costs, test_accuracies))
-
-            A simple showcase of what this Network in action could look like is 
-
-            cnn1 = Network.ConvolutionalLayer((28, 28), 1, (3, 3), 8)
-            act1 = Network.ActivationLayer(cnn1, Network.Sigmoid())
-            flat1 = Network.Flatten(act1)
-            fcl1 = Network.FullyConnectedLayer(28 * 28 * 8, 128, flat1)
-            act2 = Network.ActivationLayer(fcl1, Network.Sigmoid())
-            drop1 = Network.Dropout(act2, p=0.2)
-            fcl2 = Network.FullyConnectedLayer(128, 10, drop1)
-
-            net = Network()
-            net.compile(cnn1)
-
-            net.train(X_train, y_train, X_test, y_test, 0.05, 20, 50)
-
-            NB: In the above case, the network doesn't use a final activation layer and returns logits since it uses the 
-            default cross entropy cost during training.
-                        
-        """
-
-        # check if it is a string
-        if isinstance(cost, str):
-            if cost.lower() == "cross entropy":
-                self.cost = Network.CrossEntropy_cost()
-            elif cost.lower() == "quadratic":
-                self.cost = Network.Quadratic_cost()
-            else:
-                raise KeyError(f"{cost} is not a valid Cost function.")
-            
-        elif isinstance(cost, Network.Activation):
-            if isinstance(cost, Network.CrossEntropy_cost):
-                self.cost = cost
-
-        else:
-                raise KeyError(f"{cost} is not a valid Cost function.")
-
-        if not optimizer:
-            raise KeyError("Optimizer not given")
-        elif not isinstance(optimizer, Network.Optimizer):
-            raise KeyError(f"{optimizer} is not a valid optimizer.")
-        
-        training_accuracies, training_costs = [], []
-        test_accuracies, test_costs = [], []
-
-        training_size = y_train.shape[1]
-        for i in range(epochs):
-            # at the start of every epoch new training and test data clones are created and shuffled
-            
-            current_X_train = X_train[:, :]
-            current_y_train = y_train[:, :]
-
-            # the data is transposed inorder to keep the length of the data in front
-            # the transpose is returned after shuffling but it is needed in order to shuffle about the correct axis
-            # convolutional data is of a different shape to regular data and is thus handled differently
-            current_X_train = np.moveaxis(current_X_train, -1, 0)
-            current_y_train = np.transpose(current_y_train)
-
-            # a seed is chosen at random and this seed is then used to ensure the X and y training data are shuffled identically
-            seed = random.randint(1, 100000)
-            np.random.seed(seed)
-            np.random.shuffle(current_X_train)
-            np.random.seed(seed)
-            np.random.shuffle(current_y_train)
-            
-            current_X_train = np.moveaxis(current_X_train, 0, -1)
-            current_y_train = np.transpose(current_y_train)
-                
-            mini_batch_size = optimizer.mini_batch_size
-
-            for b in range(math.ceil(training_size/mini_batch_size)):
-                # the batches are divided and fit one after the other
-                # convolutional data is once again handled separately
-                a = self.predict(current_X_train[..., b * mini_batch_size : (b + 1) * mini_batch_size], True)
-                cost_gradient = self.cost.gradient(a , current_y_train[:, b * mini_batch_size : (b + 1) * mini_batch_size])
-
-                optimizer.run(cost_gradient)
-                
-            print(f"Epoch {i}")
-
-            if track_training_metrics:
-                # calculate and keep track of training metrics if needed
-                training_accuracy = self.check_accuracy(X_train, y_train)
-                training_cost = self.calculate_cost(X_train, y_train)
-
-                training_accuracies.append(training_accuracy)
-                training_costs.append(training_cost)
-
-                print(f"Training Accuracy: {training_accuracy} out of {y_train.shape[1]}")
-                print(f"Training Cost: {training_cost} ")
-
-                
-            test_accuracy = self.check_accuracy(X_test, y_test)
-            test_cost = self.calculate_cost(X_test, y_test)
-
-            test_accuracies.append(test_accuracy)
-            test_costs.append(test_cost)
-
-            print(f"Test Accuracy: {test_accuracy} out of {y_test.shape[1]}")
-            print(f"Test Cost: {test_cost}")
-            
-        return((training_costs, training_accuracies) , (test_costs, test_accuracies))
         
     def fit(self, X, y, eta):
         # to fit, one forward pass is taken IMMEDIATELY followed by a backward pass which starts with the delta calculated using the output
